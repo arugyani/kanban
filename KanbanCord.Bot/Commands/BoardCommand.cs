@@ -21,11 +21,11 @@ public class BoardCommand
 
     [Command("board")]
     [Description("Displays a given column on the board.")]
-    public async ValueTask ExecuteAsync(SlashCommandContext context, [Description("The column to show")] [SlashChoiceProvider<ColumnChoiceProvider>] int column = 0)
+    public async ValueTask ExecuteAsync(SlashCommandContext context, [Description("The column to show")] [SlashChoiceProvider<ColumnChoiceProvider>] int? column = null)
     {
         var boardItems = await _repository.GetAllTaskItemsByGuildIdAsync(context.Guild!.Id);
 
-        var boardStatus = (BoardStatus)column;
+        var boardStatus = (BoardStatus?)column;
         
         var embed = await BoardHelper.GetBoardEmbed(context.Client, boardItems, boardStatus);
         
