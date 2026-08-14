@@ -1,9 +1,7 @@
 using System.ComponentModel;
-using DSharpPlus.BetterPagination.Extensions;
 using DSharpPlus.Commands;
 using DSharpPlus.Commands.Processors.SlashCommands;
 using DSharpPlus.Entities;
-using DSharpPlus.Interactivity;
 using KanbanCord.Bot.Extensions;
 using KanbanCord.Bot.Helpers;
 using KanbanCord.Core.Options;
@@ -26,6 +24,8 @@ public class HelpCommand
     [Description("Displays all the commands available.")]
     public async ValueTask ExecuteAsync(SlashCommandContext context)
     {
+        await context.DeferResponseAsync();
+
         var commands = await context.Client.GetGlobalApplicationCommandsAsync();
         
         var commandDescriptions = new List<(string CommandMention, string Description)>
@@ -63,27 +63,27 @@ public class HelpCommand
             (commands.GetMention(["task", "comment"]), commands.GetDescription(["task", "comment"]))
         };
 
-        var pages = new List<Page>();
-        
-        var chunkedCommandDescriptions = commandDescriptions.Chunk(6);
+        var response = new DiscordWebhookBuilder();
 
-        foreach (var chunkedCommandDescriptionsArray in chunkedCommandDescriptions)
+        foreach (var commandDescriptionChunk in commandDescriptions.Chunk(20))
         {
-            var embedPage = new DiscordEmbedBuilder()
+            var embed = new DiscordEmbedBuilder()
                 .WithDefaultColor()
                 .WithAuthor("KanbanCord Commands");
-            
-            chunkedCommandDescriptionsArray.ToList()
-                .ForEach(commandDescription => embedPage.AddField(commandDescription.CommandMention, commandDescription.Description));
-            
-            pages.Add(new Page(string.Empty, embedPage));
+
+            foreach (var commandDescription in commandDescriptionChunk)
+                embed.AddField(commandDescription.CommandMention, commandDescription.Description);
+
+            response.AddEmbed(embed.Build());
         }
 
-        List<DiscordComponent> additionalComponents = [new DiscordLinkButtonComponent(BaseInviteUrl + context.Client.CurrentUser.Id, "Invite")];
+        List<DiscordButtonComponent> additionalComponents = [new DiscordLinkButtonComponent(BaseInviteUrl + context.Client.CurrentUser.Id, "Invite")];
         
         if (supportInvite is not null)
             additionalComponents.Add(new DiscordLinkButtonComponent(supportInvite, "Support"));
-        
-        await context.SendBetterPaginatedMessageAsync(pages, additionalComponents, allowUsageByAnyone: true);
+
+        response.AddActionRowComponent(additionalComponents);
+
+        await context.EditResponseAsync(response);
     }
 }

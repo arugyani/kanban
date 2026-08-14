@@ -1,6 +1,7 @@
 using DSharpPlus;
 using DSharpPlus.Commands;
 using DSharpPlus.Commands.Processors.SlashCommands;
+using DSharpPlus.Entities;
 using DSharpPlus.Extensions;
 using DSharpPlus.Interactivity.Extensions;
 using KanbanCord.Bot.BackgroundServices;
@@ -85,10 +86,36 @@ public static class ServiceCollectionExtensions
             })
             .AddInteractivityExtension()
             .UseZstdCompression()
-            .AddCommandsExtension((_, extension) =>
+            .AddCommandsExtension((serviceProvider, extension) =>
             {
                 extension.AddProcessor(new SlashCommandProcessor(new SlashCommandConfiguration()));
                 extension.AddCommands(typeof(Program).Assembly);
+
+                var logger = serviceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("CommandErrorHandler");
+
+                extension.CommandErrored += async (_, eventArgs) =>
+                {
+                    logger.LogError(eventArgs.Exception, "Command execution failed.");
+
+                    try
+                    {
+                        const string errorMessage = "Something went wrong while running that command. Please try again.";
+
+                        if (eventArgs.Context is SlashCommandContext slashContext
+                            && slashContext.Interaction.ResponseState != DiscordInteractionResponseState.Unacknowledged)
+                        {
+                            await eventArgs.Context.EditResponseAsync(errorMessage);
+                        }
+                        else
+                        {
+                            await eventArgs.Context.RespondAsync(errorMessage);
+                        }
+                    }
+                    catch (Exception responseException)
+                    {
+                        logger.LogError(responseException, "Failed to send the command error response.");
+                    }
+                };
             },
             new CommandsConfiguration
             {
