@@ -19,7 +19,7 @@ partial class TaskCommandGroup
         [Description("Search for the task to select")] [SlashAutoCompleteProvider<AllTaskItemsAutoCompleteProvider>] string task,
         [SlashChoiceProvider<PriorityChoiceProvider>] int priority)
     {
-        var taskItem = await _taskItemRepository.GetTaskItemByObjectIdOrDefaultAsync(new ObjectId(task));
+        var taskItem = await GetTaskAsync(context, task);
 
         var embed = new DiscordEmbedBuilder()
             .WithDefaultColor();

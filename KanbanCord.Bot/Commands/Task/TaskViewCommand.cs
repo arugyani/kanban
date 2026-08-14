@@ -21,7 +21,7 @@ partial class TaskCommandGroup
     [RequirePermissions(userPermissions: [], botPermissions: [])]
     public async ValueTask TaskViewCommand(SlashCommandContext context, [Description("Search for the task to select")] [SlashAutoCompleteProvider<AllTaskItemsAutoCompleteProvider>] string task)
     {
-        var taskItem = await _taskItemRepository.GetTaskItemByObjectIdOrDefaultAsync(new ObjectId(task));
+        var taskItem = await GetTaskAsync(context, task);
 
         var embed = new DiscordEmbedBuilder()
             .WithDefaultColor();
@@ -40,6 +40,10 @@ partial class TaskCommandGroup
             ? await context.Client.GetUserAsync(taskItem.AssigneeId.Value)
             : null;
 
+        var assigneeTeam = taskItem.AssigneeTeamId.HasValue
+            ? await _teamRepository.GetByObjectIdOrDefaultAsync(taskItem.AssigneeTeamId.Value, context.Guild!.Id)
+            : null;
+
         var priorityString = taskItem.Priority switch
         {
             Priority.Low => ":yellow_circle: Low",
@@ -52,7 +56,7 @@ partial class TaskCommandGroup
             .AddField("Title:", taskItem.Title)
             .AddField("Description:", taskItem.Description)
             .AddField("Author:", author.Mention)
-            .AddField("Assigned To:", assignee is not null ? assignee.Mention : "None")
+            .AddField("Assigned To:", assignee?.Mention ?? assigneeTeam?.Name ?? "None")
             .AddField("Current Column:", taskItem.Status.ToFormattedString())
             .AddField("Priority:", priorityString)
             .AddField("Created At:", Formatter.Timestamp(taskItem.CreatedAt, TimestampFormat.LongDateTime))

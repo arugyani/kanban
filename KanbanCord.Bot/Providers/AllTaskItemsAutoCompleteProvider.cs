@@ -9,18 +9,28 @@ namespace KanbanCord.Bot.Providers;
 public class AllTaskItemsAutoCompleteProvider : IAutoCompleteProvider
 {
     private readonly ITaskItemRepository _repository;
+    private readonly IBoardRepository _boardRepository;
+    private readonly BoardResolver _boardResolver;
 
-    public AllTaskItemsAutoCompleteProvider(ITaskItemRepository repository)
+    public AllTaskItemsAutoCompleteProvider(
+        ITaskItemRepository repository,
+        IBoardRepository boardRepository,
+        BoardResolver boardResolver)
     {
         _repository = repository;
+        _boardRepository = boardRepository;
+        _boardResolver = boardResolver;
     }
     
     
     public async ValueTask<IEnumerable<DiscordAutoCompleteChoice>> AutoCompleteAsync(AutoCompleteContext context)
     {
-        var taskItems = await _repository.GetAllTaskItemsByGuildIdAsync(context.Guild!.Id);
+        await _boardResolver.GetDefaultAsync(context.Guild!.Id, context.User.Id);
+        var taskItems = await _repository.GetAllTaskItemsByGuildIdAsync(context.Guild.Id);
+        var boardNames = (await _boardRepository.GetAllByGuildIdAsync(context.Guild.Id))
+            .ToDictionary(board => board.Id, board => board.Name);
 
-        var response = taskItems.GetAutoCompleteStrings();
+        var response = taskItems.GetAutoCompleteStrings(boardNames: boardNames);
         
         return response.Where(x => context.UserInput == null || x.Name.Contains(context.UserInput, StringComparison.OrdinalIgnoreCase))
             .Take(20);

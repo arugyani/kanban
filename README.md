@@ -7,7 +7,7 @@
 <h1 align="center">KanbanCord</h1>
 
 <p align="center">
-  A simple Kanban board, but on Discord. The idea came from <a href="https://github.com/seansylee" target="_blank">seansylee</a> who made <a href="https://github.com/seansylee/kanban-board-bot" target="_blank">kanban-board-bot</a> which is no longer maintained.
+  Simple Kanban boards for Discord teams. The idea came from <a href="https://github.com/seansylee" target="_blank">seansylee</a> who made <a href="https://github.com/seansylee/kanban-board-bot" target="_blank">kanban-board-bot</a> which is no longer maintained.
 </p>
 
 [![Publish Docker Image](https://github.com/j4asper/KanbanCord/actions/workflows/build-and-publish-docker-image.yml/badge.svg)](https://github.com/j4asper/KanbanCord/actions/workflows/build-and-publish-docker-image.yml)
@@ -72,6 +72,8 @@ KanbanCord will automatically create the required collections on startup, if the
 |-----------------|
 | Tasks           |
 | Settings        |
+| Boards          |
+| Teams           |
 
 ### Docker Compose
 
@@ -110,7 +112,37 @@ You can also customize the accessibility of the commands in your server settings
 ### General Commands
 
 - `/board`  
-  Displays the Kanban board with all tasks.
+  Displays a selected Kanban board (or the backward-compatible Default board).
+
+- `/boards list`
+  Lists every board in the server, its team, and its task count.
+
+- `/boards create` *
+  Creates a named board, optionally owned by a team.
+
+- `/boards rename` *
+  Renames a board.
+
+- `/boards set-team` *
+  Assigns a board to a team, or clears its team.
+
+- `/boards delete` *
+  Deletes an empty non-default board.
+
+- `/team list`
+  Lists teams and their people.
+
+- `/team create` *
+  Creates a team.
+
+- `/team add-person` * / `/team remove-person` *
+  Maintains a team's Discord-user roster.
+
+- `/team delete` *
+  Deletes a team after it has been detached from boards and tasks.
+
+- `/people`
+  Shows a board's contributors and owning team.
   
 - `/archive`  
   Displays all archived tasks.
@@ -130,7 +162,7 @@ You can also customize the accessibility of the commands in your server settings
   Resets the Kanban board, deleting all current and archived tasks.
 
 - `/task add` *  
-  Add a new task to the backlog.
+  Add a new task to a selected board's backlog.
 
 - `/task edit` *  
   Edit a task's title and/or description.
@@ -153,8 +185,11 @@ You can also customize the accessibility of the commands in your server settings
 - `/task move` *  
   Move a task between columns (e.g., Backlog, In-Progress, Completed).
 
+- `/task transfer` *
+  Transfer a task to another board without deleting its history.
+
 - `/task assign` *  
-  Assign a task to a specific user.
+  Assign a task to a person or a team.
 
 - `/task me` *  
   View all tasks assigned to you.

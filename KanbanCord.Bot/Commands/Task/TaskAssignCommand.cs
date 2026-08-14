@@ -5,6 +5,7 @@ using DSharpPlus.Commands.Processors.SlashCommands.ArgumentModifiers;
 using DSharpPlus.Entities;
 using KanbanCord.Bot.Providers;
 using KanbanCord.Bot.Extensions;
+using KanbanCord.Core.Models;
 using MongoDB.Bson;
 
 namespace KanbanCord.Bot.Commands.Task;
@@ -12,13 +13,14 @@ namespace KanbanCord.Bot.Commands.Task;
 partial class TaskCommandGroup
 {
     [Command("assign")]
-    [Description("Assign a task to a user.")]
+    [Description("Assign a task to a person or team.")]
     public async ValueTask TaskAssignCommand(
         SlashCommandContext context,
         [Description("Search for the task to select")] [SlashAutoCompleteProvider<AllTaskItemsAutoCompleteProvider>] string task,
-        [Description("The user to assign this task to, leave empty to remove assignee")] DiscordUser? assignee = null)
+        [Description("Person to assign; omit to remove")] DiscordUser? assignee = null,
+        [Description("Team to assign; omit to remove")] [SlashAutoCompleteProvider<TeamAutoCompleteProvider>] string? team = null)
     {
-        var taskItem = await _taskItemRepository.GetTaskItemByObjectIdOrDefaultAsync(new ObjectId(task));
+        var taskItem = await GetTaskAsync(context, task);
 
         var embed = new DiscordEmbedBuilder()
             .WithDefaultColor();
@@ -31,30 +33,57 @@ partial class TaskCommandGroup
             return;
         }
 
-        if (assignee is null)
+        if (assignee is not null && team is not null)
         {
-            if (taskItem.AssigneeId is null)
+            embed.WithDescription("Assign a task to either a person or a team, not both.");
+            await context.RespondAsync(embed);
+            return;
+        }
+
+        Team? selectedTeam = null;
+
+        if (team is not null)
+        {
+            selectedTeam = ObjectId.TryParse(team, out var teamId)
+                ? await _teamRepository.GetByObjectIdOrDefaultAsync(teamId, context.Guild!.Id)
+                : null;
+
+            if (selectedTeam is null)
             {
-                embed.WithDescription("The selected task has no user assigned.");
+                embed.WithDescription("The selected team was not found.");
+                await context.RespondAsync(embed);
+                return;
+            }
+        }
+
+        if (assignee is null && selectedTeam is null)
+        {
+            if (taskItem.AssigneeId is null && taskItem.AssigneeTeamId is null)
+            {
+                embed.WithDescription("The selected task has no person or team assigned.");
             
                 await context.RespondAsync(embed);
                 return;
             }
             
-            var assignedUser = await context.Client.GetUserAsync(taskItem.AssigneeId!.Value);
+            var previousAssignee = taskItem.AssigneeId.HasValue
+                ? $"<@{taskItem.AssigneeId.Value}>"
+                : "the assigned team";
             
             taskItem.AssigneeId = null;
+            taskItem.AssigneeTeamId = null;
             taskItem.LastUpdatedAt = DateTime.UtcNow;
             
             await _taskItemRepository.UpdateTaskItemAsync(taskItem);
             
-            embed.WithDescription($"The task \"{taskItem.Title}\" is no longer assigned to {assignedUser.Mention}.");
+            embed.WithDescription($"The task \"{taskItem.Title}\" is no longer assigned to {previousAssignee}.");
             
             await context.RespondAsync(embed);
         }
-        else
+        else if (assignee is not null)
         {
             taskItem.AssigneeId = assignee.Id;
+            taskItem.AssigneeTeamId = null;
             taskItem.LastUpdatedAt = DateTime.UtcNow;
         
             await _taskItemRepository.UpdateTaskItemAsync(taskItem);
@@ -89,6 +118,17 @@ partial class TaskCommandGroup
                 response.WithContent(assignee.Mention);
         
             await context.Interaction.CreateResponseAsync(DiscordInteractionResponseType.ChannelMessageWithSource, response);
+        }
+        else
+        {
+            taskItem.AssigneeId = null;
+            taskItem.AssigneeTeamId = selectedTeam!.Id;
+            taskItem.LastUpdatedAt = DateTime.UtcNow;
+
+            await _taskItemRepository.UpdateTaskItemAsync(taskItem);
+
+            embed.WithDescription($"The task \"{taskItem.Title}\" has been assigned to **{selectedTeam.Name}**.");
+            await context.RespondAsync(embed);
         }
     }
 }

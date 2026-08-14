@@ -74,7 +74,9 @@ public class ComponentInteractionCreatedEventHandler  :IEventHandler<ComponentIn
     {
         var taskId = eventArgs.Id.Split(".")[0];
         
-        var taskItem = await _repository.GetTaskItemByObjectIdOrDefaultAsync(new ObjectId(taskId));
+        var taskItem = ObjectId.TryParse(taskId, out var objectId)
+            ? await _repository.GetTaskItemByObjectIdOrDefaultAsync(objectId, eventArgs.Guild.Id)
+            : null;
         
         if (taskItem is null)
         {

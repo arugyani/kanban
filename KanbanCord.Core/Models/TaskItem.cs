@@ -7,6 +7,10 @@ public class TaskItem
     public ObjectId Id { get; set; } = new();
     
     public required ulong GuildId { get; set; }
+
+    // Null on documents created before multiple-board support. Those tasks are
+    // moved to the guild's default board the first time its boards are loaded.
+    public ObjectId? BoardId { get; set; }
     
     public required string Title { get; set; }
     
@@ -19,6 +23,8 @@ public class TaskItem
     public required ulong AuthorId { get; set; }
     
     public ulong? AssigneeId { get; set; }
+
+    public ObjectId? AssigneeTeamId { get; set; }
 
     public List<Comment> Comments { get; set; } = [];
     

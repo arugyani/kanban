@@ -17,7 +17,7 @@ partial class TaskCommandGroup
     [Description("Complete a task and have it moved from In-Progress to the Completed column.")]
     public async ValueTask TaskCompleteCommand(SlashCommandContext context, [Description("Search for the task to select")] [SlashAutoCompleteProvider<InProgressTaskItemsAutoCompleteProvider>] string task)
     {
-        var taskItem = await _taskItemRepository.GetTaskItemByObjectIdOrDefaultAsync(new ObjectId(task));
+        var taskItem = await GetTaskAsync(context, task);
 
         var embed = new DiscordEmbedBuilder()
             .WithDefaultColor();

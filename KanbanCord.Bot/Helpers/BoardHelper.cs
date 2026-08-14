@@ -7,16 +7,25 @@ namespace KanbanCord.Bot.Helpers;
 
 public static class BoardHelper
 {
-    public static async Task<DiscordEmbed> GetBoardEmbed(DiscordClient client, IReadOnlyList<TaskItem> boardItems, BoardStatus? boardStatus = null)
+    public static async Task<DiscordEmbed> GetBoardEmbed(
+        DiscordClient client,
+        IReadOnlyList<TaskItem> boardItems,
+        BoardStatus? boardStatus = null,
+        Board? board = null,
+        Team? team = null)
     {
         var embed = new DiscordEmbedBuilder()
             .WithDefaultColor()
-            .WithAuthor("KanbanCord Board");
+            .WithAuthor("KanbanCord Board")
+            .WithTitle(board?.Name ?? "Board");
+
+        if (team is not null)
+            embed.WithFooter($"Team: {team.Name}");
 
         if (boardStatus is not null)
         {
             var boardString = await boardItems.GetBoardTaskString(client, (BoardStatus)boardStatus);
-            embed.WithTitle(((BoardStatus)boardStatus).ToFormattedString());
+            embed.WithTitle($"{board?.Name ?? "Board"} · {((BoardStatus)boardStatus).ToFormattedString()}");
             embed.WithDescription(boardString);
         }
         else

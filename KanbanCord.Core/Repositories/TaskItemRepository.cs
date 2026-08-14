@@ -20,11 +20,27 @@ public class TaskItemRepository : ITaskItemRepository
         return tasks;
     }
 
+    public async Task<IReadOnlyList<TaskItem>> GetAllTaskItemsByBoardIdAsync(ulong guildId, ObjectId boardId)
+    {
+        var tasks = await _collection
+            .Find(task => task.GuildId == guildId && task.BoardId == boardId)
+            .ToListAsync() ?? [];
+
+        return tasks;
+    }
+
     public async Task<TaskItem?> GetTaskItemByObjectIdOrDefaultAsync(ObjectId objectId)
     {
         var task = await _collection.Find(task => task.Id == objectId).FirstOrDefaultAsync();
 
         return task;
+    }
+
+    public async Task<TaskItem?> GetTaskItemByObjectIdOrDefaultAsync(ObjectId objectId, ulong guildId)
+    {
+        return await _collection
+            .Find(task => task.Id == objectId && task.GuildId == guildId)
+            .FirstOrDefaultAsync();
     }
 
     public async Task AddTaskItemAsync(TaskItem task)
@@ -45,5 +61,19 @@ public class TaskItemRepository : ITaskItemRepository
     public async Task RemoveAllTaskItemsByIdAsync(ulong guildId)
     {
         await _collection.DeleteManyAsync(x => x.GuildId == guildId);
+    }
+
+    public async Task RemoveAllTaskItemsByBoardIdAsync(ulong guildId, ObjectId boardId)
+    {
+        await _collection.DeleteManyAsync(task => task.GuildId == guildId && task.BoardId == boardId);
+    }
+
+    public async Task AssignLegacyTasksToBoardAsync(ulong guildId, ObjectId boardId)
+    {
+        var filter = Builders<TaskItem>.Filter.Eq(task => task.GuildId, guildId)
+                     & Builders<TaskItem>.Filter.Eq(task => task.BoardId, null);
+        var update = Builders<TaskItem>.Update.Set(task => task.BoardId, boardId);
+
+        await _collection.UpdateManyAsync(filter, update);
     }
 }

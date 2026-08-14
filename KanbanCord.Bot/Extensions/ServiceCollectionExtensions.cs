@@ -5,6 +5,7 @@ using DSharpPlus.Extensions;
 using DSharpPlus.Interactivity.Extensions;
 using KanbanCord.Bot.BackgroundServices;
 using KanbanCord.Bot.EventHandlers;
+using KanbanCord.Bot.Helpers;
 using KanbanCord.Core.Options;
 using KanbanCord.Core.Repositories;
 using Microsoft.Extensions.Options;
@@ -44,6 +45,9 @@ public static class ServiceCollectionExtensions
         services
             .AddScoped<ITaskItemRepository, TaskItemRepository>()
             .AddScoped<ISettingsRepository, SettingsRepository>()
+            .AddScoped<IBoardRepository, BoardRepository>()
+            .AddScoped<ITeamRepository, TeamRepository>()
+            .AddScoped<BoardResolver>()
             ;
         
         return services;
