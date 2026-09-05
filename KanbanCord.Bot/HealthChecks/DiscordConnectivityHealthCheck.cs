@@ -5,24 +5,20 @@ namespace KanbanCord.Bot.HealthChecks;
 
 public class DiscordConnectivityHealthCheck : IHealthCheck
 {
-    private DiscordClient _discordClient;
+    private readonly DiscordClient _discordClient;
 
     public DiscordConnectivityHealthCheck(DiscordClient discordClient)
     {
         _discordClient = discordClient;
     }
 
-    public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+    public Task<HealthCheckResult> CheckHealthAsync(
+        HealthCheckContext context,
+        CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var connections = await _discordClient.GetCurrentApplicationAsync();
-            
-            return HealthCheckResult.Healthy();
-        }
-        catch (Exception e)
-        {
-            return HealthCheckResult.Unhealthy(exception: e);
-        }
+        var result = _discordClient.AllShardsConnected
+            ? HealthCheckResult.Healthy()
+            : HealthCheckResult.Unhealthy("The Discord gateway is disconnected.");
+        return Task.FromResult(result);
     }
 }

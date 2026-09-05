@@ -6,6 +6,7 @@ using MongoDB.Bson;
 
 namespace KanbanCord.Tests.RepositoryTests
 {
+    [Collection(MongoDatabaseCollection.Name)]
     public class TaskItemRepositoryTests : IDisposable
     {
         private readonly MongoDbRunner _runner;
@@ -128,6 +129,15 @@ namespace KanbanCord.Tests.RepositoryTests
         }
 
         [Fact]
+        public async Task TryAddTaskItemAsync_ReturnsFalseForADuplicateDocument()
+        {
+            var task = NewTask(123456789, ObjectId.GenerateNewId(), "One card");
+
+            Assert.True(await _repository.TryAddTaskItemAsync(task));
+            Assert.False(await _repository.TryAddTaskItemAsync(task));
+        }
+
+        [Fact]
         public async Task AssignLegacyTasksToBoardAsync_ShouldOnlyMoveLegacyTasksInGuild()
         {
             var boardId = ObjectId.GenerateNewId();
@@ -187,6 +197,76 @@ namespace KanbanCord.Tests.RepositoryTests
             var result = await _repository.GetTaskItemByObjectIdOrDefaultAsync(task.Id);
             Assert.NotNull(result);
             Assert.Equal("Updated Task Description", result?.Description);
+            Assert.Equal(1, result?.Version);
+        }
+
+        [Fact]
+        public async Task Updates_ShouldPersistWhoChangedTheCard()
+        {
+            var task = NewTask(123456789, ObjectId.GenerateNewId(), "Audited");
+            task.RecordChange(42, "card_added", "Audited was added.");
+            await _repository.AddTaskItemAsync(task);
+
+            task.Description = "A clearer note";
+            task.RecordChange(84, "card_updated", "Audited was updated.");
+            await _repository.UpdateTaskItemAsync(task);
+
+            var saved = await _repository.GetTaskItemByObjectIdOrDefaultAsync(task.Id);
+            Assert.NotNull(saved);
+            Assert.Collection(
+                saved.Changes.OrderBy(change => change.CreatedAt),
+                added =>
+                {
+                    Assert.Equal((ulong)42, added.ActorId);
+                    Assert.Equal("card_added", added.Kind);
+                },
+                updated =>
+                {
+                    Assert.Equal((ulong)84, updated.ActorId);
+                    Assert.Equal("card_updated", updated.Kind);
+                });
+        }
+
+        [Fact]
+        public async Task TryUpdateTaskItemAsync_ShouldRejectAStaleWebsiteEdit()
+        {
+            var task = NewTask(123456789, ObjectId.GenerateNewId(), "Versioned");
+            await _repository.AddTaskItemAsync(task);
+            var firstEditor = await _repository.GetTaskItemByObjectIdOrDefaultAsync(task.Id);
+            var staleEditor = await _repository.GetTaskItemByObjectIdOrDefaultAsync(task.Id);
+            Assert.NotNull(firstEditor);
+            Assert.NotNull(staleEditor);
+
+            firstEditor.Description = "Saved first";
+            staleEditor.Description = "Should not overwrite";
+
+            Assert.True(await _repository.TryUpdateTaskItemAsync(firstEditor, 0));
+            Assert.False(await _repository.TryUpdateTaskItemAsync(staleEditor, 0));
+
+            var saved = await _repository.GetTaskItemByObjectIdOrDefaultAsync(task.Id);
+            Assert.Equal("Saved first", saved?.Description);
+            Assert.Equal(1, saved?.Version);
+        }
+
+        [Fact]
+        public async Task UpdateTaskItemAsync_ShouldRejectAStaleDiscordEdit()
+        {
+            var task = NewTask(123456789, ObjectId.GenerateNewId(), "Versioned command");
+            await _repository.AddTaskItemAsync(task);
+            var firstEditor = await _repository.GetTaskItemByObjectIdOrDefaultAsync(task.Id);
+            var staleEditor = await _repository.GetTaskItemByObjectIdOrDefaultAsync(task.Id);
+            Assert.NotNull(firstEditor);
+            Assert.NotNull(staleEditor);
+
+            firstEditor.Description = "Saved first";
+            staleEditor.Description = "Should not overwrite";
+
+            await _repository.UpdateTaskItemAsync(firstEditor);
+            await Assert.ThrowsAsync<TaskItemVersionConflictException>(
+                () => _repository.UpdateTaskItemAsync(staleEditor));
+
+            var saved = await _repository.GetTaskItemByObjectIdOrDefaultAsync(task.Id);
+            Assert.Equal("Saved first", saved?.Description);
         }
 
         [Fact]

@@ -9,7 +9,7 @@ public static class HealthChecksBuilderExtensions
         builder
             .AddCheck<DiscordConnectivityHealthCheck>(nameof(DiscordConnectivityHealthCheck))
             .AddCheck<MongoDbConnectivityHealthCheck>(nameof(MongoDbConnectivityHealthCheck));
-        
+
         return builder;
     }
 }

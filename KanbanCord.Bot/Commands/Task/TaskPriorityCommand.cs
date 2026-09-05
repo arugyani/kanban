@@ -3,56 +3,64 @@ using DSharpPlus.Commands;
 using DSharpPlus.Commands.Processors.SlashCommands;
 using DSharpPlus.Commands.Processors.SlashCommands.ArgumentModifiers;
 using DSharpPlus.Entities;
-using KanbanCord.Bot.Providers;
 using KanbanCord.Bot.Extensions;
+using KanbanCord.Bot.Providers;
 using KanbanCord.Core.Models;
-using MongoDB.Bson;
 
 namespace KanbanCord.Bot.Commands.Task;
 
 partial class TaskCommandGroup
 {
-    [Command("priority")]
-    [Description("Set a priority for a task.")]
+    [Command("importance")]
+    [Description("Set a card's importance.")]
     public async ValueTask TaskPriorityCommand(
         SlashCommandContext context,
-        [Description("Search for the task to select")] [SlashAutoCompleteProvider<AllTaskItemsAutoCompleteProvider>] string task,
-        [SlashChoiceProvider<PriorityChoiceProvider>] int priority)
+        [Description("Card to update")][SlashAutoCompleteProvider<AllTaskItemsAutoCompleteProvider>] string task,
+        [Description("New importance")][SlashChoiceProvider<PriorityChoiceProvider>] int importance)
     {
-        var taskItem = await GetTaskAsync(context, task);
+        await context.DeferResponseAsync(ephemeral: true);
 
-        var embed = new DiscordEmbedBuilder()
-            .WithDefaultColor();
-        
+        Priority? nextPriority;
+        if (importance == PriorityChoiceProvider.None)
+            nextPriority = null;
+        else if (Enum.IsDefined((Priority)importance))
+            nextPriority = (Priority)importance;
+        else
+        {
+            await context.EditResponseAsync(new DiscordWebhookBuilder()
+                .WithContent("Choose a valid importance."));
+            return;
+        }
+
+        var taskItem = await GetTaskAsync(context, task);
         if (taskItem is null)
         {
-            embed.WithDescription("The selected task was not found, please try again.");
-            
-            await context.RespondAsync(embed);
+            await context.EditResponseAsync(new DiscordWebhookBuilder()
+                .WithContent("That card could not be found."));
             return;
         }
-        
-        if (taskItem.Priority == (Priority)priority)
+
+        var nextName = nextPriority?.ToString() ?? "No flag";
+        if (taskItem.Priority == nextPriority)
         {
-            var notFoundEmbed = new DiscordEmbedBuilder()
+            await context.EditResponseAsync(new DiscordWebhookBuilder()
+                .WithContent($"That card already has **{nextName}** importance."));
+            return;
+        }
+
+        var previousName = taskItem.Priority?.ToString() ?? "No flag";
+        taskItem.Priority = nextPriority;
+        taskItem.RecordChange(
+            context.User.Id,
+            "importance_changed",
+            $"{taskItem.Title} changed to {nextName} importance.");
+
+        await _taskItemRepository.UpdateTaskItemAsync(taskItem);
+
+        await context.EditResponseAsync(new DiscordWebhookBuilder()
+            .AddEmbed(new DiscordEmbedBuilder()
                 .WithDefaultColor()
                 .WithDescription(
-                    $"The selected task already has the priority **{((Priority)priority).ToString()}**.");
-            
-            await context.RespondAsync(notFoundEmbed);
-            return;
-        }
-        
-        var fromPriority = taskItem.Priority;
-        
-        taskItem.Priority = (Priority)priority;
-        taskItem.LastUpdatedAt = DateTime.UtcNow;
-        
-        await _taskItemRepository.UpdateTaskItemAsync(taskItem);
-        
-        embed.WithDescription(
-                $"The priority for task \"{taskItem.Title}\" has been updated from **{fromPriority.ToString()}** to **{((Priority)priority).ToString()}**.");
-        
-        await context.RespondAsync(embed);
+                    $"**{taskItem.Title}** changed from **{previousName}** to **{nextName}** importance.")));
     }
 }

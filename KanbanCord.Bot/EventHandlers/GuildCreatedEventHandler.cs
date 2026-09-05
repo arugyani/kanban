@@ -16,7 +16,7 @@ public class GuildCreatedEventHandler : IEventHandler<GuildCreatedEventArgs>
     public Task HandleEventAsync(DiscordClient sender, GuildCreatedEventArgs eventArgs)
     {
         _logger.LogInformation("Joined Guild: {guildName} ({guildId})", eventArgs.Guild.Name, eventArgs.Guild.Id);
-        
+
         return Task.CompletedTask;
     }
 }

@@ -41,17 +41,13 @@ public class TeamRepository : ITeamRepository
 
     public async Task AddAsync(Team team)
     {
-        team.Name = team.Name.Trim();
-        team.NormalizedName = NormalizeName(team.Name);
-        team.MemberIds = team.MemberIds.Distinct().ToList();
+        Normalize(team);
         await _collection.InsertOneAsync(team);
     }
 
     public async Task UpdateAsync(Team team)
     {
-        team.Name = team.Name.Trim();
-        team.NormalizedName = NormalizeName(team.Name);
-        team.MemberIds = team.MemberIds.Distinct().ToList();
+        Normalize(team);
         await _collection.ReplaceOneAsync(candidate => candidate.Id == team.Id, team);
     }
 
@@ -66,4 +62,17 @@ public class TeamRepository : ITeamRepository
     }
 
     private static string NormalizeName(string name) => name.Trim().ToUpperInvariant();
+
+    private static void Normalize(Team team)
+    {
+        team.Name = team.Name.Trim();
+        team.NormalizedName = NormalizeName(team.Name);
+        team.MemberIds = team.MemberIds.Distinct().ToList();
+        team.MemberRoles = team.MemberRoles
+            .Where(pair => ulong.TryParse(pair.Key, out var id) && team.MemberIds.Contains(id))
+            .Where(pair => pair.Value is "organizer" or "member" or "view_only")
+            .ToDictionary(pair => pair.Key, pair => pair.Value);
+        team.Icon = team.Icon is "ghost" or "pumpkin" or "bat" ? team.Icon : "ghost";
+        team.Accent = team.Accent is "pumpkin" or "purple" or "green" or "berry" ? team.Accent : "purple";
+    }
 }

@@ -3,8 +3,8 @@ using DSharpPlus.Commands;
 using DSharpPlus.Commands.Processors.SlashCommands;
 using DSharpPlus.Commands.Processors.SlashCommands.ArgumentModifiers;
 using DSharpPlus.Entities;
-using KanbanCord.Bot.Providers;
 using KanbanCord.Bot.Extensions;
+using KanbanCord.Bot.Providers;
 using KanbanCord.Core.Models;
 using MongoDB.Bson;
 
@@ -12,123 +12,147 @@ namespace KanbanCord.Bot.Commands.Task;
 
 partial class TaskCommandGroup
 {
-    [Command("assign")]
-    [Description("Assign a task to a person or team.")]
+    [Command("people")]
+    [Description("Add or remove a person from a card.")]
     public async ValueTask TaskAssignCommand(
         SlashCommandContext context,
-        [Description("Search for the task to select")] [SlashAutoCompleteProvider<AllTaskItemsAutoCompleteProvider>] string task,
-        [Description("Person to assign; omit to remove")] DiscordUser? assignee = null,
-        [Description("Team to assign; omit to remove")] [SlashAutoCompleteProvider<TeamAutoCompleteProvider>] string? team = null)
+        [Description("Card to update")][SlashAutoCompleteProvider<AllTaskItemsAutoCompleteProvider>] string task,
+        [Description("Person to add or remove")] DiscordUser? person = null,
+        [Description("Remove this person")] bool remove = false,
+        [Description("Assign a whole group instead")][SlashAutoCompleteProvider<TeamAutoCompleteProvider>] string? group = null)
     {
-        var taskItem = await GetTaskAsync(context, task);
+        await context.DeferResponseAsync(ephemeral: true);
 
-        var embed = new DiscordEmbedBuilder()
-            .WithDefaultColor();
-        
-        if (taskItem is null)
+        var card = await GetTaskAsync(context, task);
+        if (card is null)
         {
-            embed.WithDescription("The selected task was not found, please try again.");
-            
-            await context.RespondAsync(embed);
+            await context.EditDeferredResponseAsync("That card could not be found.");
+            return;
+        }
+        if (person is not null && group is not null)
+        {
+            await context.EditDeferredResponseAsync("Choose a person or a group, not both.");
             return;
         }
 
-        if (assignee is not null && team is not null)
+        if (group is not null)
         {
-            embed.WithDescription("Assign a task to either a person or a team, not both.");
-            await context.RespondAsync(embed);
-            return;
-        }
-
-        Team? selectedTeam = null;
-
-        if (team is not null)
-        {
-            selectedTeam = ObjectId.TryParse(team, out var teamId)
-                ? await _teamRepository.GetByObjectIdOrDefaultAsync(teamId, context.Guild!.Id)
+            var selectedGroup = ObjectId.TryParse(group, out var groupId)
+                ? await _teamRepository.GetByObjectIdOrDefaultAsync(groupId, context.Guild!.Id)
                 : null;
-
-            if (selectedTeam is null)
+            if (selectedGroup is null)
             {
-                embed.WithDescription("The selected team was not found.");
-                await context.RespondAsync(embed);
+                await context.EditDeferredResponseAsync("That group could not be found.");
                 return;
             }
-        }
-
-        if (assignee is null && selectedTeam is null)
-        {
-            if (taskItem.AssigneeId is null && taskItem.AssigneeTeamId is null)
+            if (!_authorization.CanViewGroup(selectedGroup, context.User.Id))
             {
-                embed.WithDescription("The selected task has no person or team assigned.");
-            
-                await context.RespondAsync(embed);
+                await context.EditDeferredResponseAsync("That group could not be found.");
                 return;
             }
-            
-            var previousAssignee = taskItem.AssigneeId.HasValue
-                ? $"<@{taskItem.AssigneeId.Value}>"
-                : "the assigned team";
-            
-            taskItem.AssigneeId = null;
-            taskItem.AssigneeTeamId = null;
-            taskItem.LastUpdatedAt = DateTime.UtcNow;
-            
-            await _taskItemRepository.UpdateTaskItemAsync(taskItem);
-            
-            embed.WithDescription($"The task \"{taskItem.Title}\" is no longer assigned to {previousAssignee}.");
-            
-            await context.RespondAsync(embed);
+            var board = card.BoardId.HasValue
+                ? await _boardRepository.GetByObjectIdOrDefaultAsync(card.BoardId.Value, context.Guild!.Id)
+                : null;
+            if (board is null)
+            {
+                await context.EditDeferredResponseAsync("That card's board could not be found.");
+                return;
+            }
+            foreach (var memberId in selectedGroup.MemberIds)
+            {
+                if (!await _boardResolver.CanIncludePersonAsync(board, memberId))
+                {
+                    await context.EditDeferredResponseAsync(
+                        "Choose a group whose people can open this card's board.");
+                    return;
+                }
+            }
+            card.AssigneeId = null;
+            card.AssigneeIds = [];
+            card.AssigneeTeamId = selectedGroup.Id;
+            card.LastUpdatedAt = DateTime.UtcNow;
+            card.RecordChange(context.User.Id, "people_changed", $"{selectedGroup.Name} joined {card.Title}.");
+            await _taskItemRepository.UpdateTaskItemAsync(card);
+            await context.EditDeferredResponseAsync(
+                $"**{card.Title}** now involves **{selectedGroup.Name}**.");
+            return;
         }
-        else if (assignee is not null)
+
+        if (person is null)
         {
-            taskItem.AssigneeId = assignee.Id;
-            taskItem.AssigneeTeamId = null;
-            taskItem.LastUpdatedAt = DateTime.UtcNow;
-        
-            await _taskItemRepository.UpdateTaskItemAsync(taskItem);
+            card.AssigneeId = null;
+            card.AssigneeIds = [];
+            card.AssigneeTeamId = null;
+            card.LastUpdatedAt = DateTime.UtcNow;
+            card.RecordChange(context.User.Id, "people_changed", $"Everyone left {card.Title}.");
+            await _taskItemRepository.UpdateTaskItemAsync(card);
+            await context.EditDeferredResponseAsync(
+                $"Nobody is on **{card.Title}** now.");
+            return;
+        }
 
-            bool directMessageSentToAssignee;
-
-            try
+        var people = card.AssigneeIds.ToHashSet();
+        if (card.AssigneeId.HasValue)
+            people.Add(card.AssigneeId.Value);
+        string message;
+        if (remove)
+        {
+            if (!people.Remove(person.Id))
             {
-                var assigneeEmbed = new DiscordEmbedBuilder()
-                    .WithDefaultColor()
-                    .WithAuthor(context.Guild!.Name, iconUrl: context.Guild.IconUrl)
-                    .WithTitle("You have been assigned to a Task!")
-                    .AddField("Task Name", taskItem.Title)
-                    .AddField("Task Description", taskItem.Description);
-            
-                await assignee.SendMessageAsync(assigneeEmbed);
-
-                directMessageSentToAssignee = true;
+                await context.EditDeferredResponseAsync(
+                    $"{person.Mention} is not on **{card.Title}**.");
+                return;
             }
-            catch (Exception)
-            {
-                directMessageSentToAssignee = false;
-            }
-
-            embed.WithDescription($"The task \"{taskItem.Title}\" has been assigned to {assignee.Mention}.");
-        
-            var response = new DiscordInteractionResponseBuilder()
-                .AddMention(new UserMention(assignee))
-                .AddEmbed(embed);
-        
-            if (!directMessageSentToAssignee)
-                response.WithContent(assignee.Mention);
-        
-            await context.Interaction.CreateResponseAsync(DiscordInteractionResponseType.ChannelMessageWithSource, response);
+            message = $"Removed {person.Mention} from **{card.Title}**.";
         }
         else
         {
-            taskItem.AssigneeId = null;
-            taskItem.AssigneeTeamId = selectedTeam!.Id;
-            taskItem.LastUpdatedAt = DateTime.UtcNow;
+            var board = card.BoardId.HasValue
+                ? await _boardRepository.GetByObjectIdOrDefaultAsync(card.BoardId.Value, context.Guild!.Id)
+                : null;
+            if (board is null || !await _boardResolver.CanIncludePersonAsync(board, person.Id))
+            {
+                await context.EditDeferredResponseAsync(
+                    "Choose someone who has access to this card's group.");
+                return;
+            }
+            if (!people.Add(person.Id))
+            {
+                await context.EditDeferredResponseAsync(
+                    $"{person.Mention} is already on **{card.Title}**.");
+                return;
+            }
+            message = $"Added {person.Mention} to **{card.Title}**.";
+            await TryNotifyAsync(context, person, card);
+        }
 
-            await _taskItemRepository.UpdateTaskItemAsync(taskItem);
+        card.AssigneeIds = people.ToList();
+        card.AssigneeId = card.AssigneeIds.Count == 0 ? null : card.AssigneeIds[0];
+        card.AssigneeTeamId = null;
+        card.LastUpdatedAt = DateTime.UtcNow;
+        card.RecordChange(context.User.Id, "people_changed", $"People on {card.Title} changed.");
+        await _taskItemRepository.UpdateTaskItemAsync(card);
+        await context.EditDeferredResponseAsync(message);
+    }
 
-            embed.WithDescription($"The task \"{taskItem.Title}\" has been assigned to **{selectedTeam.Name}**.");
-            await context.RespondAsync(embed);
+    private static async System.Threading.Tasks.Task TryNotifyAsync(
+        SlashCommandContext context,
+        DiscordUser person,
+        TaskItem card)
+    {
+        try
+        {
+            await person.SendMessageAsync(new DiscordEmbedBuilder()
+                .WithDefaultColor()
+                .WithAuthor(context.Guild!.Name, iconUrl: context.Guild.IconUrl)
+                .WithTitle("You were added to a card")
+                .AddField("Card", card.Title)
+                .AddField("Notes", string.IsNullOrWhiteSpace(card.Description) ? "No notes yet." : card.Description));
+        }
+        catch
+        {
+            // Direct messages are optional. The card update still succeeds if
+            // this person has DMs disabled for the server.
         }
     }
 }

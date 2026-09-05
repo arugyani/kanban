@@ -10,10 +10,10 @@ namespace KanbanCord.Bot.Commands.Task;
 partial class TaskCommandGroup
 {
     [Command("me")]
-    [Description("Displays all the tasks assigned to you.")]
+    [Description("Show cards involving you on one board.")]
     [RequirePermissions(userPermissions: [], botPermissions: [])]
     public async ValueTask TaskMeCommand(
         SlashCommandContext context,
-        [Description("Board to inspect; defaults to Default")] [SlashAutoCompleteProvider<BoardAutoCompleteProvider>] string? board = null) =>
+        [Description("Board to inspect; defaults to Default")][SlashAutoCompleteProvider<BoardAutoCompleteProvider>] string? board = null) =>
         await TaskUserCommand(context, context.User, board);
 }

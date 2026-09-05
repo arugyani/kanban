@@ -9,14 +9,14 @@ public static class HostBuilderExtensions
         hostBuilder.ConfigureLogging((hostContext, logging) =>
         {
             logging.ClearProviders();
-            
+
             Log.Logger = new LoggerConfiguration()
                 .ReadFrom.Configuration(hostContext.Configuration)
                 .CreateLogger();
-            
+
             logging.AddSerilog();
         });
-        
+
         return hostBuilder;
     }
 
@@ -27,7 +27,7 @@ public static class HostBuilderExtensions
             options.ValidateScopes = true;
             options.ValidateOnBuild = true;
         });
-        
+
         return hostBuilder;
     }
 }

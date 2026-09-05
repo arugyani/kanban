@@ -30,7 +30,7 @@ public class PeopleCommand
     [Description("Show the people contributing to a board.")]
     public async ValueTask ExecuteAsync(
         SlashCommandContext context,
-        [Description("Board to inspect; defaults to Default")] [SlashAutoCompleteProvider<BoardAutoCompleteProvider>] string? board = null)
+        [Description("Board to inspect; defaults to Default")][SlashAutoCompleteProvider<BoardAutoCompleteProvider>] string? board = null)
     {
         var selectedBoard = await _boardResolver.ResolveAsync(context.Guild!.Id, context.User.Id, board);
 

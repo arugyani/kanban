@@ -43,14 +43,58 @@ public class TaskItemRepository : ITaskItemRepository
             .FirstOrDefaultAsync();
     }
 
+    public async Task<TaskItem?> GetByDiscordMessageIdOrDefaultAsync(ulong guildId, ulong messageId)
+    {
+        return await _collection
+            .Find(task => task.GuildId == guildId && task.DiscordMessageId == messageId)
+            .FirstOrDefaultAsync();
+    }
+
     public async Task AddTaskItemAsync(TaskItem task)
     {
+        task.CommitChange("card_added", $"{task.Title} was added.");
         await _collection.InsertOneAsync(task);
+    }
+
+    public async Task<bool> TryAddTaskItemAsync(TaskItem task)
+    {
+        task.CommitChange("card_added", $"{task.Title} was added.");
+        try
+        {
+            await _collection.InsertOneAsync(task);
+            return true;
+        }
+        catch (MongoWriteException exception)
+            when (exception.WriteError?.Category == ServerErrorCategory.DuplicateKey)
+        {
+            return false;
+        }
     }
 
     public async Task UpdateTaskItemAsync(TaskItem task)
     {
-        await _collection.ReplaceOneAsync(x => x.Id == task.Id, task);
+        var expectedVersion = Math.Max(0, task.Version);
+        if (!await TryUpdateTaskItemAsync(task, expectedVersion))
+            throw new TaskItemVersionConflictException(task.Id);
+    }
+
+    public async Task<bool> TryUpdateTaskItemAsync(TaskItem task, long expectedVersion)
+    {
+        var versionFilter = expectedVersion == 0
+            ? Builders<TaskItem>.Filter.Or(
+                Builders<TaskItem>.Filter.Eq(candidate => candidate.Version, 0),
+                Builders<TaskItem>.Filter.Exists(candidate => candidate.Version, false))
+            : Builders<TaskItem>.Filter.Eq(candidate => candidate.Version, expectedVersion);
+        var filter = Builders<TaskItem>.Filter.Eq(candidate => candidate.Id, task.Id)
+                     & Builders<TaskItem>.Filter.Eq(candidate => candidate.GuildId, task.GuildId)
+                     & versionFilter;
+
+        task.CommitChange("card_updated", $"{task.Title} was updated.");
+        task.Version = expectedVersion + 1;
+        task.LastUpdatedAt = DateTime.UtcNow;
+        var result = await _collection.ReplaceOneAsync(filter, task);
+
+        return result.ModifiedCount == 1;
     }
 
     public async Task RemoveTaskItemAsync(TaskItem task)

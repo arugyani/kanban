@@ -10,21 +10,23 @@ public static class TaskItemHelper
     public static async Task<string> GetBoardTaskString(this IReadOnlyList<TaskItem> boardItems, DiscordClient client, BoardStatus boardStatus, ulong? assigneeId = null)
     {
         List<string> taskStrings = [];
-        
+
         var id = 1;
-        
+
         foreach (var boardItem in boardItems.Where(x => x.Status == boardStatus))
         {
-            if ((assigneeId.HasValue && boardItem.AssigneeId == assigneeId.Value) || !assigneeId.HasValue)
+            if ((assigneeId.HasValue
+                 && (boardItem.AssigneeId == assigneeId.Value || boardItem.AssigneeIds.Contains(assigneeId.Value)))
+                || !assigneeId.HasValue)
             {
                 var user = await client.GetUserAsync(boardItem.AuthorId);
-            
+
                 taskStrings.Add($"{id} - \"{boardItem.Title}\" added by: {user.Username}");
             }
-            
+
             id++;
         }
-        
+
         return $"```bash\n{(taskStrings.Any() ? string.Join('\n', taskStrings) : " ")}```";
     }
 
@@ -34,7 +36,7 @@ public static class TaskItemHelper
         IReadOnlyDictionary<ObjectId, string>? boardNames = null)
     {
         List<DiscordAutoCompleteChoice> taskItems = [];
-        
+
         var id = 1;
 
         if (boardStatus.HasValue)
@@ -44,7 +46,7 @@ public static class TaskItemHelper
                 taskItems.Add(new DiscordAutoCompleteChoice(
                     GetChoiceName(task, boardStatus.Value, id, boardNames),
                     task.Id.ToString()));
-            
+
                 id++;
             }
         }
@@ -58,14 +60,14 @@ public static class TaskItemHelper
                     taskItems.Add(new DiscordAutoCompleteChoice(
                         GetChoiceName(task, newBoardStatus, id, boardNames),
                         task.Id.ToString()));
-            
+
                     id++;
                 }
 
                 id = 1;
             }
         }
-        
+
         return taskItems;
     }
 

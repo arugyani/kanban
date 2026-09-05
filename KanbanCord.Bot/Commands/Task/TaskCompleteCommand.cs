@@ -14,32 +14,33 @@ namespace KanbanCord.Bot.Commands.Task;
 partial class TaskCommandGroup
 {
     [Command("complete")]
-    [Description("Complete a task and have it moved from In-Progress to the Completed column.")]
-    public async ValueTask TaskCompleteCommand(SlashCommandContext context, [Description("Search for the task to select")] [SlashAutoCompleteProvider<InProgressTaskItemsAutoCompleteProvider>] string task)
+    [Description("Move a card from Doing to Done.")]
+    public async ValueTask TaskCompleteCommand(SlashCommandContext context, [Description("Card to finish")][SlashAutoCompleteProvider<InProgressTaskItemsAutoCompleteProvider>] string task)
     {
         var taskItem = await GetTaskAsync(context, task);
 
         var embed = new DiscordEmbedBuilder()
             .WithDefaultColor();
-        
+
         if (taskItem is null)
         {
-            embed.WithDescription("The selected task was not found, please try again.");
-            
-            await context.RespondAsync(embed);
+            embed.WithDescription("That card could not be found.");
+
+            await context.RespondAsync(embed, ephemeral: true);
             return;
         }
 
         taskItem.Status = BoardStatus.Completed;
         taskItem.LastUpdatedAt = DateTime.UtcNow;
-        
+        taskItem.RecordChange(context.User.Id, "card_moved", $"{taskItem.Title} moved to Done.");
+
         await _taskItemRepository.UpdateTaskItemAsync(taskItem);
 
         var commands = await context.Client.GetGlobalApplicationCommandsAsync();
-        
+
         embed.WithDescription(
-                $"The task \"{taskItem.Title}\" has been completed and moved to the **Completed** column. View it using {commands.GetMention(["board"])}.");
-        
-        await context.RespondAsync(embed);
+                $"**{taskItem.Title}** moved to **Done**. View it using {commands.GetMention(["board", "recap"])}.");
+
+        await context.RespondAsync(embed, ephemeral: true);
     }
 }

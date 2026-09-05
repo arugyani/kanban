@@ -10,7 +10,9 @@ public class ColumnChoiceProvider : IChoiceProvider
     private static readonly IReadOnlyList<DiscordApplicationCommandOptionChoice> Columns =
     [
         new(BoardStatus.Backlog.ToFormattedString(), (int)BoardStatus.Backlog),
+        new(BoardStatus.UpNext.ToFormattedString(), (int)BoardStatus.UpNext),
         new(BoardStatus.InProgress.ToFormattedString(), (int)BoardStatus.InProgress),
+        new(BoardStatus.Waiting.ToFormattedString(), (int)BoardStatus.Waiting),
         new(BoardStatus.Completed.ToFormattedString(), (int)BoardStatus.Completed),
         new(BoardStatus.Archived.ToFormattedString(), (int)BoardStatus.Archived)
     ];

@@ -5,6 +5,7 @@ using MongoDB.Driver;
 
 namespace KanbanCord.Tests.RepositoryTests;
 
+[Collection(MongoDatabaseCollection.Name)]
 public class BoardRepositoryTests : IDisposable
 {
     private readonly MongoDbRunner _runner;
@@ -64,6 +65,37 @@ public class BoardRepositoryTests : IDisposable
 
         Assert.Empty(await _repository.GetAllByGuildIdAsync(123));
         Assert.Single(await _repository.GetAllByGuildIdAsync(999));
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ShouldPersistCustomizedColumns()
+    {
+        var board = NewBoard(123, "Show");
+        board.Columns = BoardColumns.For(board)
+            .Select((column, index) => new BoardColumnDefinition
+            {
+                Status = column.Status,
+                Name = index == 0 ? "Someday" : column.Name,
+                Rank = 5120 - index * 1024,
+                Color = column.Color,
+            })
+            .ToList();
+        await _repository.AddAsync(board);
+
+        var saved = await _repository.GetByObjectIdOrDefaultAsync(board.Id, 123);
+
+        Assert.NotNull(saved);
+        var columns = BoardColumns.For(saved);
+        Assert.Equal("Done", columns[0].Name);
+        Assert.Contains(columns, column => column.Name == "Someday");
+    }
+
+    [Fact]
+    public void BoardColumns_ForLegacyBoard_ReturnsFiveFriendlyDefaults()
+    {
+        var columns = BoardColumns.For(NewBoard(123, "Legacy"));
+
+        Assert.Equal(["Ideas", "Up Next", "Doing", "Waiting", "Done"], columns.Select(column => column.Name));
     }
 
     private static Board NewBoard(ulong guildId, string name) => new()

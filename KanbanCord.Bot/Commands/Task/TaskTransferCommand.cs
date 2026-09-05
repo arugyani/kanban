@@ -11,20 +11,20 @@ namespace KanbanCord.Bot.Commands.Task;
 partial class TaskCommandGroup
 {
     [Command("transfer")]
-    [Description("Transfer a task to another board.")]
+    [Description("Move a card to another board.")]
     public async ValueTask TaskTransferCommand(
         SlashCommandContext context,
-        [Description("Task to transfer")] [SlashAutoCompleteProvider<AllTaskItemsAutoCompleteProvider>] string task,
-        [Description("Destination board")] [SlashAutoCompleteProvider<BoardAutoCompleteProvider>] string board)
+        [Description("Card to move")][SlashAutoCompleteProvider<AllTaskItemsAutoCompleteProvider>] string task,
+        [Description("Destination board")][SlashAutoCompleteProvider<BoardAutoCompleteProvider>] string board)
     {
         var taskItem = await GetTaskAsync(context, task);
-        var destinationBoard = await _boardResolver.ResolveAsync(context.Guild!.Id, context.User.Id, board);
+        var destinationBoard = await _boardResolver.ResolveEditableAsync(context.Guild!.Id, context.User.Id, board);
 
         if (taskItem is null || destinationBoard is null)
         {
             await context.RespondAsync(new DiscordEmbedBuilder()
                 .WithDefaultColor()
-                .WithDescription("The selected task or board was not found."));
+                .WithDescription("That card or board could not be found."), ephemeral: true);
             return;
         }
 
@@ -32,7 +32,7 @@ partial class TaskCommandGroup
         {
             await context.RespondAsync(new DiscordEmbedBuilder()
                 .WithDefaultColor()
-                .WithDescription($"The task is already on **{destinationBoard.Name}**."));
+                .WithDescription($"That card is already on **{destinationBoard.Name}**."), ephemeral: true);
             return;
         }
 
@@ -42,11 +42,15 @@ partial class TaskCommandGroup
 
         taskItem.BoardId = destinationBoard.Id;
         taskItem.LastUpdatedAt = DateTime.UtcNow;
+        taskItem.RecordChange(
+            context.User.Id,
+            "card_transferred",
+            $"{taskItem.Title} moved to the {destinationBoard.Name} board.");
         await _taskItemRepository.UpdateTaskItemAsync(taskItem);
 
         await context.RespondAsync(new DiscordEmbedBuilder()
             .WithDefaultColor()
             .WithDescription(
-                $"Transferred \"{taskItem.Title}\" from **{sourceBoard?.Name ?? "Default"}** to **{destinationBoard.Name}**."));
+                $"Moved **{taskItem.Title}** from **{sourceBoard?.Name ?? "Default"}** to **{destinationBoard.Name}**."), ephemeral: true);
     }
 }

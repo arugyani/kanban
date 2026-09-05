@@ -5,6 +5,7 @@ using DSharpPlus.Commands.Processors.SlashCommands;
 using DSharpPlus.Commands.Processors.SlashCommands.ArgumentModifiers;
 using DSharpPlus.Entities;
 using KanbanCord.Bot.Extensions;
+using KanbanCord.Bot.Helpers;
 using KanbanCord.Bot.Providers;
 using KanbanCord.Core.Constants;
 using KanbanCord.Core.Models;
@@ -13,37 +14,42 @@ using MongoDB.Bson;
 
 namespace KanbanCord.Bot.Commands;
 
-[Command("team")]
+[Command("group")]
 [RequirePermissions(userPermissions: [DiscordPermission.ManageMessages], botPermissions: [])]
 public class TeamCommandGroup
 {
     private readonly ITeamRepository _teamRepository;
     private readonly IBoardRepository _boardRepository;
     private readonly ITaskItemRepository _taskItemRepository;
+    private readonly BoardAuthorizationService _authorization;
 
     public TeamCommandGroup(
         ITeamRepository teamRepository,
         IBoardRepository boardRepository,
-        ITaskItemRepository taskItemRepository)
+        ITaskItemRepository taskItemRepository,
+        BoardAuthorizationService authorization)
     {
         _teamRepository = teamRepository;
         _boardRepository = boardRepository;
         _taskItemRepository = taskItemRepository;
+        _authorization = authorization;
     }
 
     [Command("list")]
-    [Description("List teams and their people.")]
+    [Description("List groups and their people.")]
     [RequirePermissions(userPermissions: [], botPermissions: [])]
     public async ValueTask ListAsync(SlashCommandContext context)
     {
-        var teams = await _teamRepository.GetAllByGuildIdAsync(context.Guild!.Id);
+        var teams = (await _teamRepository.GetAllByGuildIdAsync(context.Guild!.Id))
+            .Where(team => _authorization.CanViewGroup(team, context.User.Id))
+            .ToList();
         var embed = new DiscordEmbedBuilder()
             .WithDefaultColor()
-            .WithAuthor("KanbanCord Teams");
+            .WithAuthor("RGBOO Groups");
 
         if (teams.Count == 0)
         {
-            embed.WithDescription("No teams have been created yet.");
+            embed.WithDescription("No groups are available to you yet.");
         }
         else
         {
@@ -56,24 +62,24 @@ public class TeamCommandGroup
             }
         }
 
-        await context.RespondAsync(embed);
+        await context.RespondAsync(embed, ephemeral: true);
     }
 
     [Command("create")]
-    [Description("Create a team.")]
-    public async ValueTask CreateAsync(SlashCommandContext context, [Description("Team name")] string name)
+    [Description("Create a group.")]
+    public async ValueTask CreateAsync(SlashCommandContext context, [Description("Group name")] string name)
     {
         name = name.Trim();
 
         if (name.Length is 0 or > Limits.TeamNameMaxLength)
         {
-            await RespondWithErrorAsync(context, $"Team names must be between 1 and {Limits.TeamNameMaxLength} characters.");
+            await RespondWithErrorAsync(context, $"Group names must be between 1 and {Limits.TeamNameMaxLength} characters.");
             return;
         }
 
         if (await _teamRepository.NameExistsAsync(context.Guild!.Id, name))
         {
-            await RespondWithErrorAsync(context, $"A team named \"{name}\" already exists.");
+            await RespondWithErrorAsync(context, $"A group named \"{name}\" already exists.");
             return;
         }
 
@@ -88,21 +94,21 @@ public class TeamCommandGroup
         await _teamRepository.AddAsync(team);
         await context.RespondAsync(new DiscordEmbedBuilder()
             .WithDefaultColor()
-            .WithDescription($"Created the **{team.Name}** team."));
+            .WithDescription($"Created the **{team.Name}** group."));
     }
 
     [Command("add-person")]
-    [Description("Add a person to a team.")]
+    [Description("Add a person to a group.")]
     public async ValueTask AddPersonAsync(
         SlashCommandContext context,
-        [Description("Team to update")] [SlashAutoCompleteProvider<TeamAutoCompleteProvider>] string team,
+        [Description("Group to update")][SlashAutoCompleteProvider<TeamAutoCompleteProvider>] string team,
         [Description("Person to add")] DiscordUser person)
     {
         var selectedTeam = await ResolveTeamAsync(context.Guild!.Id, team);
 
         if (selectedTeam is null)
         {
-            await RespondWithErrorAsync(context, "The selected team was not found.");
+            await RespondWithErrorAsync(context, "The selected group was not found.");
             return;
         }
 
@@ -121,17 +127,17 @@ public class TeamCommandGroup
     }
 
     [Command("remove-person")]
-    [Description("Remove a person from a team.")]
+    [Description("Remove a person from a group.")]
     public async ValueTask RemovePersonAsync(
         SlashCommandContext context,
-        [Description("Team to update")] [SlashAutoCompleteProvider<TeamAutoCompleteProvider>] string team,
+        [Description("Group to update")][SlashAutoCompleteProvider<TeamAutoCompleteProvider>] string team,
         [Description("Person to remove")] DiscordUser person)
     {
         var selectedTeam = await ResolveTeamAsync(context.Guild!.Id, team);
 
         if (selectedTeam is null)
         {
-            await RespondWithErrorAsync(context, "The selected team was not found.");
+            await RespondWithErrorAsync(context, "The selected group was not found.");
             return;
         }
 
@@ -141,6 +147,8 @@ public class TeamCommandGroup
             return;
         }
 
+        selectedTeam.MemberRoles.Remove(person.Id.ToString());
+
         await _teamRepository.UpdateAsync(selectedTeam);
         await context.RespondAsync(new DiscordEmbedBuilder()
             .WithDefaultColor()
@@ -148,16 +156,16 @@ public class TeamCommandGroup
     }
 
     [Command("delete")]
-    [Description("Delete a team that has no boards or assigned tasks.")]
+    [Description("Delete a group that has no boards or cards.")]
     public async ValueTask DeleteAsync(
         SlashCommandContext context,
-        [Description("Team to delete")] [SlashAutoCompleteProvider<TeamAutoCompleteProvider>] string team)
+        [Description("Group to delete")][SlashAutoCompleteProvider<TeamAutoCompleteProvider>] string team)
     {
         var selectedTeam = await ResolveTeamAsync(context.Guild!.Id, team);
 
         if (selectedTeam is null)
         {
-            await RespondWithErrorAsync(context, "The selected team was not found.");
+            await RespondWithErrorAsync(context, "The selected group was not found.");
             return;
         }
 
@@ -167,14 +175,14 @@ public class TeamCommandGroup
         if (boards.Any(board => board.TeamId == selectedTeam.Id)
             || tasks.Any(task => task.AssigneeTeamId == selectedTeam.Id))
         {
-            await RespondWithErrorAsync(context, "Remove this team from its boards and tasks before deleting it.");
+            await RespondWithErrorAsync(context, "Remove this group from its boards and cards before deleting it.");
             return;
         }
 
         await _teamRepository.RemoveAsync(selectedTeam);
         await context.RespondAsync(new DiscordEmbedBuilder()
             .WithDefaultColor()
-            .WithDescription($"Deleted the **{selectedTeam.Name}** team."));
+            .WithDescription($"Deleted the **{selectedTeam.Name}** group."));
     }
 
     private async Task<Team?> ResolveTeamAsync(ulong guildId, string teamId)

@@ -1,0 +1,202 @@
+{
+  "version": 2,
+  "dependencies": {
+    "net10.0": {
+      "DSharpPlus": {
+        "type": "Direct",
+        "requested": "[5.0.0-nightly-02603, )",
+        "resolved": "5.0.0-nightly-02603",
+        "contentHash": "V0glOywg2xOkyY7QsDyU8wr4aNzFdCVPPymxfm7+iHVTQ1MQ/dpZC1zsQP5z2kpv6/HtTGSyuwbb/WdNIT3Acw==",
+        "dependencies": {
+          "CommunityToolkit.HighPerformance": "8.4.0",
+          "NetEscapades.EnumGenerators": "1.0.0-beta12",
+          "Newtonsoft.Json": "13.0.3",
+          "Polly.Core": "8.5.2",
+          "Ulid": "1.3.4"
+        }
+      },
+      "DSharpPlus.Commands": {
+        "type": "Direct",
+        "requested": "[5.0.0-nightly-02603, )",
+        "resolved": "5.0.0-nightly-02603",
+        "contentHash": "QgFp+oAoPQUiJ7vDu2MXcD4gTC04HKgzLJddEldD/blNfqqLF5MiqpArWLbGSs/CpAev2XhgYyBIT6OovkZFlQ==",
+        "dependencies": {
+          "DSharpPlus": "5.0.0-nightly-02603",
+          "Raffinert.FuzzySharp": "2.0.3",
+          "Ulid": "1.3.4"
+        }
+      },
+      "DSharpPlus.Interactivity": {
+        "type": "Direct",
+        "requested": "[5.0.0-nightly-02603, )",
+        "resolved": "5.0.0-nightly-02603",
+        "contentHash": "xn+5kepj+hcTdsQCNN+kasP6nvQ2M+PXWKz58wtBCuE45gxnDbLUVDVCl3ik9mUQXJopkg3Ir8j5BbxH3a1LsQ==",
+        "dependencies": {
+          "ConcurrentHashSet": "1.3.0",
+          "DSharpPlus": "5.0.0-nightly-02603"
+        }
+      },
+      "DSharpPlus.Natives.Zstd": {
+        "type": "Direct",
+        "requested": "[1.5.7.25, )",
+        "resolved": "1.5.7.25",
+        "contentHash": "6ciGzBGTcDuWvcHeQVpDqNcQfrfGKKdNuQYwD6PZG3UUAP9la3wqKUEAxISKgZuM/WQ/8vkWzfO4G7JkCJPM4A=="
+      },
+      "J4asper.DSharpPlus.BetterPagination": {
+        "type": "Direct",
+        "requested": "[1.2.0, )",
+        "resolved": "1.2.0",
+        "contentHash": "OyDhzgNA32tfjUztYwDwkHk3HjIu0q3r63q5KMP1P+jxQqjQK1tVAndSznzJZb8r9g4yVOiZ1THQfhEcairhAA==",
+        "dependencies": {
+          "DSharpPlus": "5.0.0-nightly-02581",
+          "DSharpPlus.Commands": "5.0.0-nightly-02581",
+          "DSharpPlus.Interactivity": "5.0.0-nightly-02581"
+        }
+      },
+      "MongoDB.Bson": {
+        "type": "Direct",
+        "requested": "[3.11.1, )",
+        "resolved": "3.11.1",
+        "contentHash": "sCHXQZ5GzQy/e7/EVuC+YWoUzHg/V0dB3OfiU5lgG78jrODfsZq53K6h5yskH7Pd2aRmeiPjpIi/u80TxnjxKg=="
+      },
+      "MongoDB.Driver": {
+        "type": "Direct",
+        "requested": "[3.11.1, )",
+        "resolved": "3.11.1",
+        "contentHash": "FzzXI2pFVjKUeFz3fTAmjuyavzy6HwO/V9+7WX48y6Se+2JfHR+KLmedN9IrAnLQLB8wfHErLyRxFxD29uL2gw==",
+        "dependencies": {
+          "DnsClient": "1.6.1",
+          "MongoDB.Bson": "3.11.1",
+          "SharpCompress": "0.48.1",
+          "Snappier": "1.3.1",
+          "ZstdSharp.Port": "0.7.3"
+        }
+      },
+      "Serilog": {
+        "type": "Direct",
+        "requested": "[4.4.0, )",
+        "resolved": "4.4.0",
+        "contentHash": "ZC6Le3rr4TVJJjS4KsQAesxeF1EhW9qcZmmG7eP5Y2G3+gTGkJEUXkq4+tZNPtyp05I0wWOxnIjwtxFweJsObw=="
+      },
+      "Serilog.Exceptions": {
+        "type": "Direct",
+        "requested": "[8.4.0, )",
+        "resolved": "8.4.0",
+        "contentHash": "nc/+hUw3lsdo0zCj0KMIybAu7perMx79vu72w0za9Nsi6mWyNkGXxYxakAjWB7nEmYL6zdmhEQRB4oJ2ALUeug==",
+        "dependencies": {
+          "Serilog": "2.8.0",
+          "System.Reflection.TypeExtensions": "4.7.0"
+        }
+      },
+      "Serilog.Extensions.Logging": {
+        "type": "Direct",
+        "requested": "[10.0.0, )",
+        "resolved": "10.0.0",
+        "contentHash": "vx0kABKl2dWbBhhqAfTOk53/i8aV/5VaT3a6il9gn72Wqs2pM7EK2OB6No6xdqK2IaY6Zf9gdjLuK9BVa2rT+Q==",
+        "dependencies": {
+          "Serilog": "4.2.0"
+        }
+      },
+      "Serilog.Settings.Configuration": {
+        "type": "Direct",
+        "requested": "[10.0.1, )",
+        "resolved": "10.0.1",
+        "contentHash": "ayFE7h66mqMqzwfPrzDCMbWU27FdNC2bkCG+jnkeHFZTBRh+yWdr4aa/2WuX7c8RmqxGPMW2UqoJ3fw9hK3QhA==",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyModel": "10.0.0",
+          "Serilog": "4.3.0"
+        }
+      },
+      "Serilog.Sinks.Console": {
+        "type": "Direct",
+        "requested": "[6.1.1, )",
+        "resolved": "6.1.1",
+        "contentHash": "8jbqgjUyZlfCuSTaJk6lOca465OndqOz3KZP6Cryt/IqZYybyBu7GP0fE/AXBzrrQB3EBmQntBFAvMVz1COvAA==",
+        "dependencies": {
+          "Serilog": "4.0.0"
+        }
+      },
+      "Serilog.Sinks.File": {
+        "type": "Direct",
+        "requested": "[7.0.0, )",
+        "resolved": "7.0.0",
+        "contentHash": "fKL7mXv7qaiNBUC71ssvn/dU0k9t0o45+qm2XgKAlSt19xF+ijjxyA3R6HmCgfKEKwfcfkwWjayuQtRueZFkYw==",
+        "dependencies": {
+          "Serilog": "4.2.0"
+        }
+      },
+      "CommunityToolkit.HighPerformance": {
+        "type": "Transitive",
+        "resolved": "8.4.0",
+        "contentHash": "flxspiBs0G/0GMp7IK2J2ijV9bTG6hEwFc/z6ekHqB6nwRJ4Ry2yLdx+TkbCUYFCl4XhABkAwomeKbT6zM2Zlg=="
+      },
+      "ConcurrentHashSet": {
+        "type": "Transitive",
+        "resolved": "1.3.0",
+        "contentHash": "a30gfk4WDn2f7sOisXpko+CrQ7s5nL1ZWk4afnRwwRQHWPRrRSZpzn5Dz2YWpJtS90NJqkytQ/MkzHq4QYTIbg=="
+      },
+      "DnsClient": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "4H/f2uYJOZ+YObZjpY9ABrKZI+JNw3uizp6oMzTXwDw6F+2qIPhpRl/1t68O/6e98+vqNiYGu+lswmwdYUy3gg=="
+      },
+      "Microsoft.Extensions.DependencyModel": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "RFYJR7APio/BiqdQunRq6DB+nDB6nc2qhHr77mlvZ0q0BT8PubMXN7XicmfzCbrDE/dzhBnUKBRXLTcqUiZDGg=="
+      },
+      "NetEscapades.EnumGenerators": {
+        "type": "Transitive",
+        "resolved": "1.0.0-beta12",
+        "contentHash": "DvhI+7nTsMRIEJrYrMxXLe3YwJj3jyPezGqr4sf7JM/nuf6zOnzdXOyYr3IHbj86KZlYYEOCdBLO5/2okugvGQ=="
+      },
+      "Newtonsoft.Json": {
+        "type": "Transitive",
+        "resolved": "13.0.3",
+        "contentHash": "HrC5BXdl00IP9zeV+0Z848QWPAoCr9P3bDEZguI+gkLcBKAOxix/tLEAAHC+UvDNPv4a2d18lOReHMOagPa+zQ=="
+      },
+      "Polly.Core": {
+        "type": "Transitive",
+        "resolved": "8.5.2",
+        "contentHash": "1MJKdxv4zwDmiWvYvVN24DsrWUfgQ4F83voH8bhbtLMdPuGy8CfTUzsgQhvyrl1a7hrM6f/ydwLVdVUI0xooUw=="
+      },
+      "Raffinert.FuzzySharp": {
+        "type": "Transitive",
+        "resolved": "2.0.3",
+        "contentHash": "Iv5o7JZHbRlyd8UvzD6vev3Q1Q+xldtyc+aZ5G8UIY2x/aFZ1qHNHRuGJhrnUu4CjoLW8LOUBMGaau/qEptN5Q=="
+      },
+      "SharpCompress": {
+        "type": "Transitive",
+        "resolved": "0.48.1",
+        "contentHash": "SqGaVniGG943Gph/gHhUQUiZPyC7y0tXZyMf0/B2oGsMav9dqs7JJOuUA+xOkwKYaWM2TM7aZQjNK91f4bX71A=="
+      },
+      "Snappier": {
+        "type": "Transitive",
+        "resolved": "1.3.1",
+        "contentHash": "DOdDQiO8YZ5rBtVLY+6CmR1yp9WYoJRgEEktPBrR0tEj9QO2djA/zv0O3DX0OZpEAfosbY8pytQ9tQUogwQsEA=="
+      },
+      "System.Reflection.TypeExtensions": {
+        "type": "Transitive",
+        "resolved": "4.7.0",
+        "contentHash": "VybpaOQQhqE6siHppMktjfGBw1GCwvCqiufqmP8F1nj7fTUNtW35LOEt3UZTEsECfo+ELAl/9o9nJx3U91i7vA=="
+      },
+      "Ulid": {
+        "type": "Transitive",
+        "resolved": "1.3.4",
+        "contentHash": "6IaGquwjjfW+BoHSV844y12Uy2kxbboYNmsibxr2lotcSPAA3LKy1CKcAQ8JOdAdL4xMoDNXA1oxG41w7fbr6Q=="
+      },
+      "ZstdSharp.Port": {
+        "type": "Transitive",
+        "resolved": "0.7.3",
+        "contentHash": "U9Ix4l4cl58Kzz1rJzj5hoVTjmbx1qGMwzAcbv1j/d3NzrFaESIurQyg+ow4mivCgkE3S413y+U9k4WdnEIkRA=="
+      },
+      "kanbancord.core": {
+        "type": "Project",
+        "dependencies": {
+          "MongoDB.Bson": "[3.11.1, )",
+          "MongoDB.Driver": "[3.11.1, )"
+        }
+      }
+    }
+  }
+}

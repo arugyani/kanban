@@ -1,33 +1,35 @@
-version: '3.8'
-
 services:
   kanbancord:
-    image: jazper/kanbancord:latest
-    container_name: kanbancord
+    build:
+      context: .
     environment:
-      - Discord__Token=y0ur-v3ry-s3cr3t-d1sc0rd.b0t.t0k3n  # Ensure you set your discord bot token
-      - Database__ConnectionString=mongodb://mongo:27017
-      - Database__Name=KanbanCord  # You can change this to your preferred database name, remember to also change the mongodb environment variable MONGO_INITDB_DATABASE
+      Discord__Token: ${DISCORD_TOKEN:?Set DISCORD_TOKEN}
+      Database__ConnectionString: mongodb://mongo:27017
+      Database__Name: ${DATABASE_NAME:-KanbanCord}
+      Web__ApiKey: ${WEB_API_KEY:?Set WEB_API_KEY to at least 32 random bytes}
+      Web__AdministratorDiscordUserIds__0: ${ADMIN_DISCORD_USER_ID:?Set ADMIN_DISCORD_USER_ID}
+      Web__PublicBoardUrl: ${PUBLIC_BOARD_URL:-}
+      Urls: http://0.0.0.0:5000
     depends_on:
-      - mongo
-    restart: always
-    networks:
-      - kanbancord_network
+      mongo:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
 
   mongo:
-    image: mongo:latest
-    container_name: mongodb
+    image: mongo:8.0
     environment:
-      - MONGO_INITDB_DATABASE=KanbanCord  # Default DB name
+      MONGO_INITDB_DATABASE: ${DATABASE_NAME:-KanbanCord}
+    healthcheck:
+      test:
+        ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
     volumes:
       - mongo_data:/data/db
-    networks:
-      - kanbancord_network
-    restart: always
-
-networks:
-  kanbancord_network:
-    driver: bridge
+    restart: unless-stopped
 
 volumes:
   mongo_data:

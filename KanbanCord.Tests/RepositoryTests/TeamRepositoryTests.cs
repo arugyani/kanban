@@ -5,6 +5,7 @@ using MongoDB.Driver;
 
 namespace KanbanCord.Tests.RepositoryTests;
 
+[Collection(MongoDatabaseCollection.Name)]
 public class TeamRepositoryTests : IDisposable
 {
     private readonly MongoDbRunner _runner;
@@ -55,6 +56,29 @@ public class TeamRepositoryTests : IDisposable
 
         Assert.NotNull(result);
         Assert.Contains((ulong)42, result.MemberIds);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ShouldKeepOnlyValidRolesForCurrentMembers()
+    {
+        var team = NewTeam(123, "Design");
+        team.MemberIds = [42, 84];
+        team.MemberRoles = new Dictionary<string, string>
+        {
+            ["42"] = "organizer",
+            ["84"] = "view_only",
+            ["999"] = "member",
+            ["not-a-user"] = "member",
+        };
+
+        await _repository.AddAsync(team);
+        var result = await _repository.GetByObjectIdOrDefaultAsync(team.Id, 123);
+
+        Assert.NotNull(result);
+        Assert.Equal("organizer", result.MemberRoles["42"]);
+        Assert.Equal("view_only", result.MemberRoles["84"]);
+        Assert.DoesNotContain("999", result.MemberRoles.Keys);
+        Assert.DoesNotContain("not-a-user", result.MemberRoles.Keys);
     }
 
     [Fact]

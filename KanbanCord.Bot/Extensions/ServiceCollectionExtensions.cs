@@ -21,17 +21,24 @@ public static class ServiceCollectionExtensions
         services
             .AddServices()
             .AddOptions()
-            .AddHttpClient()
             ;
+        services.AddHttpClient("uptime-monitor", client =>
+            client.Timeout = TimeSpan.FromSeconds(10));
 
-        services.AddScoped<IMongoDatabase>(sp =>
+        // MongoClient owns the driver's connection pools and is designed to be
+        // reused for the lifetime of the process. Creating one per request
+        // would churn sockets and make brief traffic spikes less reliable.
+        services.AddSingleton<IMongoClient>(sp =>
         {
             var options = sp.GetRequiredService<IOptions<DatabaseOptions>>().Value;
-            
-            return new MongoClient(options.ConnectionString)
-                .GetDatabase(options.Name);
+            return new MongoClient(options.ConnectionString);
         });
-        
+        services.AddSingleton<IMongoDatabase>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<DatabaseOptions>>().Value;
+            return sp.GetRequiredService<IMongoClient>().GetDatabase(options.Name);
+        });
+
         return services;
     }
 
@@ -42,15 +49,16 @@ public static class ServiceCollectionExtensions
             .AddHostedService<DatabaseSetupBackgroundService>()
             .AddHostedService<UptimeMonitorBackgroundService>()
             ;
-        
+
         services
             .AddScoped<ITaskItemRepository, TaskItemRepository>()
             .AddScoped<ISettingsRepository, SettingsRepository>()
             .AddScoped<IBoardRepository, BoardRepository>()
             .AddScoped<ITeamRepository, TeamRepository>()
+            .AddScoped<BoardAuthorizationService>()
             .AddScoped<BoardResolver>()
             ;
-        
+
         return services;
     }
 
@@ -59,30 +67,47 @@ public static class ServiceCollectionExtensions
         services.AddOptionsWithValidateOnStart<DatabaseOptions>()
             .BindConfiguration(DatabaseOptions.Database)
             .ValidateDataAnnotations();
-        
+
         services.AddOptionsWithValidateOnStart<DiscordOptions>()
             .BindConfiguration(DiscordOptions.Discord)
             .ValidateDataAnnotations();
-        
+
         services.AddOptionsWithValidateOnStart<UptimeMonitorOptions>()
             .BindConfiguration(UptimeMonitorOptions.UptimeMonitor)
+            .ValidateDataAnnotations()
+            .Validate(
+                options => !options.Enabled
+                           || (Uri.TryCreate(options.PushUrl, UriKind.Absolute, out var uri)
+                               && uri.Scheme is "https" or "http"),
+                "UptimeMonitor:PushUrl must be an HTTP(S) URL when monitoring is enabled.")
+            .Validate(
+                options => !options.Enabled
+                           || (options.PushInterval >= TimeSpan.FromMinutes(1)
+                               && options.PushInterval <= TimeSpan.FromDays(1)),
+                "UptimeMonitor:PushInterval must be between one minute and one day.");
+
+        services.AddOptionsWithValidateOnStart<WebApiOptions>()
+            .BindConfiguration(WebApiOptions.Web)
             .ValidateDataAnnotations();
 
         return services;
     }
-    
+
     public static IServiceCollection AddDiscordConfiguration(this IServiceCollection services, IConfiguration configuration)
     {
         const DiscordIntents intents = DiscordIntents.None
-                                       | DiscordIntents.Guilds;
-        
+                                       | DiscordIntents.Guilds
+                                       | DiscordIntents.GuildMembers;
+
         services
             .AddDiscordClient(configuration.GetRequiredSection("Discord:Token").Value!, intents)
             .Configure<DiscordConfiguration>(discordConfiguration =>
             {
                 discordConfiguration.LogUnknownAuditlogs = false;
                 discordConfiguration.LogUnknownEvents = false;
-                discordConfiguration.AlwaysCacheMembers = false;
+                // The guild is intentionally small. Keeping its roster in the
+                // gateway cache avoids a Discord REST request on every dashboard refresh.
+                discordConfiguration.AlwaysCacheMembers = true;
             })
             .AddInteractivityExtension()
             .UseZstdCompression()
@@ -99,12 +124,19 @@ public static class ServiceCollectionExtensions
 
                     try
                     {
-                        const string errorMessage = "Something went wrong while running that command. Please try again.";
+                        var errorMessage = eventArgs.Exception.GetBaseException()
+                            is TaskItemVersionConflictException
+                                ? "That card changed while you were looking at it. Run the command again."
+                                : "Something went wrong while running that command. Please try again.";
 
                         if (eventArgs.Context is SlashCommandContext slashContext
                             && slashContext.Interaction.ResponseState != DiscordInteractionResponseState.Unacknowledged)
                         {
                             await eventArgs.Context.EditResponseAsync(errorMessage);
+                        }
+                        else if (eventArgs.Context is SlashCommandContext privateSlashContext)
+                        {
+                            await privateSlashContext.RespondAsync(errorMessage, ephemeral: true);
                         }
                         else
                         {
@@ -127,9 +159,10 @@ public static class ServiceCollectionExtensions
                 eventHandlingBuilder.AddEventHandlers<GuildDeletedEventHandler>();
                 eventHandlingBuilder.AddEventHandlers<GuildCreatedEventHandler>();
                 eventHandlingBuilder.AddEventHandlers<ComponentInteractionCreatedEventHandler>();
+                eventHandlingBuilder.AddEventHandlers<MessageContextMenuEventHandler>();
                 eventHandlingBuilder.AddEventHandlers<GuildDownloadCompletedEventHandler>();
             });
-        
+
         return services;
     }
 }

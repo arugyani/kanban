@@ -1,10 +1,10 @@
-﻿using KanbanCord.Core.Models;
+﻿using MongoDB.Bson;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using MongoDB.Driver;
 
 namespace KanbanCord.Bot.HealthChecks;
 
-public class MongoDbConnectivityHealthCheck: IHealthCheck
+public class MongoDbConnectivityHealthCheck : IHealthCheck
 {
     private readonly IMongoDatabase _database;
     private readonly ILogger<MongoDbConnectivityHealthCheck> _logger;
@@ -19,19 +19,9 @@ public class MongoDbConnectivityHealthCheck: IHealthCheck
     {
         try
         {
-            var collections = await _database.ListCollectionNamesAsync(cancellationToken: cancellationToken);
-            var collectionNames = await collections.ToListAsync(cancellationToken);
-
-            var requiredCollections = Enum.GetValues<RequiredCollections>()
-                .Select(x => x.ToString())
-                .ToArray();
-
-            foreach (var requiredCollection in requiredCollections)
-            {
-                if (!collectionNames.Contains(requiredCollection))
-                    return HealthCheckResult.Unhealthy($"Collection '{requiredCollection}' does not exist.");
-            }
-            
+            await _database.RunCommandAsync<BsonDocument>(
+                new BsonDocument("ping", 1),
+                cancellationToken: cancellationToken);
             return HealthCheckResult.Healthy();
         }
         catch (Exception ex)

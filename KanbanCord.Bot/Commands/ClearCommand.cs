@@ -23,14 +23,14 @@ public class ClearCommand
         _repository = repository;
         _boardResolver = boardResolver;
     }
-    
-    
+
+
     [Command("clear")]
     [Description("Clear the kanban board completely, this will archive all current tasks.")]
     [RequirePermissions(userPermissions: [DiscordPermission.ManageMessages], botPermissions: [])]
     public async ValueTask ExecuteAsync(
         SlashCommandContext context,
-        [Description("Board to clear; defaults to Default")] [SlashAutoCompleteProvider<BoardAutoCompleteProvider>] string? board = null)
+        [Description("Board to clear; defaults to Default")][SlashAutoCompleteProvider<BoardAutoCompleteProvider>] string? board = null)
     {
         var selectedBoard = await _boardResolver.ResolveAsync(context.Guild!.Id, context.User.Id, board);
 
@@ -41,18 +41,18 @@ public class ClearCommand
         }
 
         var clearButton = new DiscordButtonComponent(DiscordButtonStyle.Danger, Guid.NewGuid().ToString(), "Clear");
-        
+
         var embed = new DiscordEmbedBuilder()
             .WithDefaultColor()
             .WithAuthor($"Clear {selectedBoard.Name}")
             .WithDescription("Are you sure you want to archive every active task on this board?");
-        
+
         var responseMessage = new DiscordMessageBuilder()
             .AddEmbed(embed)
             .AddActionRowComponent(clearButton);
-        
+
         await context.RespondAsync(responseMessage);
-        
+
         var message = await context.Interaction.GetOriginalResponseAsync();
 
         var response = await message.WaitForButtonAsync();
@@ -60,38 +60,39 @@ public class ClearCommand
         switch (response.TimedOut)
         {
             case false when response.Result.Id == clearButton.CustomId && response.Result.User.Id == context.User.Id:
-            {
-                var tasks = await _repository.GetAllTaskItemsByBoardIdAsync(context.Guild!.Id, selectedBoard.Id);
-
-                foreach (var task in tasks.Where(task => task.Status != BoardStatus.Archived))
                 {
-                    task.Status = BoardStatus.Archived;
+                    var tasks = await _repository.GetAllTaskItemsByBoardIdAsync(context.Guild!.Id, selectedBoard.Id);
 
-                    await _repository.UpdateTaskItemAsync(task);
+                    foreach (var task in tasks.Where(task => task.Status != BoardStatus.Archived))
+                    {
+                        task.Status = BoardStatus.Archived;
+                        task.RecordChange(context.User.Id, "card_archived", $"{task.Title} was archived.");
+
+                        await _repository.UpdateTaskItemAsync(task);
+                    }
+
+                    var deletedEmbed = new DiscordEmbedBuilder()
+                        .WithDefaultColor()
+                        .WithDescription($"The **{selectedBoard.Name}** board has been cleared.");
+
+                    await response.Result.Interaction.CreateResponseAsync(
+                        DiscordInteractionResponseType.UpdateMessage,
+                        new DiscordInteractionResponseBuilder()
+                            .AddEmbed(deletedEmbed));
+
+                    return;
                 }
-                
-                var deletedEmbed = new DiscordEmbedBuilder()
-                    .WithDefaultColor()
-                    .WithDescription($"The **{selectedBoard.Name}** board has been cleared.");
-            
-                await response.Result.Interaction.CreateResponseAsync(
-                    DiscordInteractionResponseType.UpdateMessage,
-                    new DiscordInteractionResponseBuilder()
-                        .AddEmbed(deletedEmbed));
-
-                return;
-            }
             case true:
-            {
-                clearButton.Disable();
-            
-                var timedOutMessage = new DiscordMessageBuilder()
-                    .AddEmbed(embed)
-                    .AddActionRowComponent(clearButton);
-            
-                await message.ModifyAsync(timedOutMessage);
-                break;
-            }
+                {
+                    clearButton.Disable();
+
+                    var timedOutMessage = new DiscordMessageBuilder()
+                        .AddEmbed(embed)
+                        .AddActionRowComponent(clearButton);
+
+                    await message.ModifyAsync(timedOutMessage);
+                    break;
+                }
         }
     }
 }

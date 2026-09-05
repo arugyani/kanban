@@ -31,15 +31,15 @@ public class GuildDeletedEventHandler : IEventHandler<GuildDeletedEventArgs>
     {
         if (eventArgs.Unavailable)
             return;
-        
+
         await _taskItemRepository.RemoveAllTaskItemsByIdAsync(eventArgs.Guild.Id);
 
         await _boardRepository.RemoveAllByGuildIdAsync(eventArgs.Guild.Id);
 
         await _teamRepository.RemoveAllByGuildIdAsync(eventArgs.Guild.Id);
-        
+
         await _settingsRepository.RemoveAsync(eventArgs.Guild.Id);
-        
+
         _logger.LogInformation("Left Guild: {guildName} ({guildId})", eventArgs.Guild.Name, eventArgs.Guild.Id);
     }
 }

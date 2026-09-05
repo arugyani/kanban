@@ -14,34 +14,35 @@ namespace KanbanCord.Bot.Commands.Task;
 partial class TaskCommandGroup
 {
     [Command("archive")]
-    [Description("Archive a task and have it moved to the list of archived items.")]
-    public async ValueTask TaskArchiveCommand(SlashCommandContext context, [Description("Search for the task to select")] [SlashAutoCompleteProvider<CompletedTaskItemsAutoCompleteProvider>] string task)
+    [Description("Archive a card from Done.")]
+    public async ValueTask TaskArchiveCommand(SlashCommandContext context, [Description("Card to archive")][SlashAutoCompleteProvider<CompletedTaskItemsAutoCompleteProvider>] string task)
     {
         var taskItem = await GetTaskAsync(context, task);
 
         var embed = new DiscordEmbedBuilder()
             .WithDefaultColor();
-        
+
         if (taskItem is null)
         {
-            embed.WithDescription("The selected task was not found, please try again.");
-            
-            await context.RespondAsync(embed);
+            embed.WithDescription("That card could not be found.");
+
+            await context.RespondAsync(embed, ephemeral: true);
             return;
         }
-        
+
         var fromColumn = taskItem.Status;
-        
+
         taskItem.Status = BoardStatus.Archived;
         taskItem.LastUpdatedAt = DateTime.UtcNow;
-        
+        taskItem.RecordChange(context.User.Id, "card_archived", $"{taskItem.Title} was archived.");
+
         await _taskItemRepository.UpdateTaskItemAsync(taskItem);
 
         var commands = await context.Client.GetGlobalApplicationCommandsAsync();
-        
+
         embed.WithDescription(
-                $"The task \"{taskItem.Title}\" has been moved from **{fromColumn.ToFormattedString()}** to **{BoardStatus.Archived.ToFormattedString()}**. View it using {commands.GetMention(["archive"])}.");
-        
-        await context.RespondAsync(embed);
+                $"**{taskItem.Title}** moved from **{fromColumn.ToFormattedString()}** to the archive. View it using {commands.GetMention(["archive"])}.");
+
+        await context.RespondAsync(embed, ephemeral: true);
     }
 }

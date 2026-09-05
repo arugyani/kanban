@@ -1,0 +1,15 @@
+.git
+.github
+.idea
+.vs
+.vscode
+**/bin
+**/obj
+**/TestResults
+**/*.user
+**/*.suo
+**/*.log
+README.md
+AGENTS.md
+fly.toml
+docker-compose.yml

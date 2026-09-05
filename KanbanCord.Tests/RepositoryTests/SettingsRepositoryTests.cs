@@ -5,6 +5,7 @@ using MongoDB.Driver;
 
 namespace KanbanCord.Tests.RepositoryTests;
 
+[Collection(MongoDatabaseCollection.Name)]
 public class SettingsRepositoryTests : IDisposable
 {
     private readonly MongoDbRunner _runner;
@@ -17,7 +18,7 @@ public class SettingsRepositoryTests : IDisposable
 
         _database = new MongoClient(_runner.ConnectionString)
             .GetDatabase("KanbanCord");
-        
+
         _repository = new SettingsRepository(_database);
     }
 

@@ -40,10 +40,12 @@ public class BoardsCommandGroup
     [RequirePermissions(userPermissions: [], botPermissions: [])]
     public async ValueTask ListAsync(SlashCommandContext context)
     {
-        await _boardResolver.GetDefaultAsync(context.Guild!.Id, context.User.Id);
-        var boards = await _boardRepository.GetAllByGuildIdAsync(context.Guild.Id);
+        var boards = await _boardResolver.GetAccessibleBoardsAsync(context.Guild!.Id, context.User.Id);
         var teams = await _teamRepository.GetAllByGuildIdAsync(context.Guild.Id);
-        var tasks = await _taskItemRepository.GetAllTaskItemsByGuildIdAsync(context.Guild.Id);
+        var boardIds = boards.Select(board => board.Id).ToHashSet();
+        var tasks = (await _taskItemRepository.GetAllTaskItemsByGuildIdAsync(context.Guild.Id))
+            .Where(task => task.BoardId.HasValue && boardIds.Contains(task.BoardId.Value))
+            .ToList();
 
         var description = string.Join('\n', boards.Select(board =>
         {
@@ -51,7 +53,7 @@ public class BoardsCommandGroup
             var suffix = team is null ? string.Empty : $" · {team.Name}";
             var defaultMarker = board.IsDefault ? " (default)" : string.Empty;
             var taskCount = tasks.Count(task => task.BoardId == board.Id);
-            return $"**{board.Name}**{defaultMarker}{suffix} — {taskCount} task{(taskCount == 1 ? string.Empty : "s")}";
+            return $"**{board.Name}**{defaultMarker}{suffix} — {taskCount} card{(taskCount == 1 ? string.Empty : "s")}";
         }));
 
         var embed = new DiscordEmbedBuilder()
@@ -59,15 +61,15 @@ public class BoardsCommandGroup
             .WithAuthor("KanbanCord Boards")
             .WithDescription(description);
 
-        await context.RespondAsync(embed);
+        await context.RespondAsync(embed, ephemeral: true);
     }
 
     [Command("create")]
-    [Description("Create a board, optionally owned by a team.")]
+    [Description("Create a board, optionally owned by a group.")]
     public async ValueTask CreateAsync(
         SlashCommandContext context,
         [Description("Board name")] string name,
-        [Description("Team that owns this board")] [SlashAutoCompleteProvider<TeamAutoCompleteProvider>] string? team = null)
+        [Description("Group that owns this board")][SlashAutoCompleteProvider<TeamAutoCompleteProvider>] string? team = null)
     {
         name = name.Trim();
 
@@ -119,7 +121,7 @@ public class BoardsCommandGroup
     [Description("Rename a board.")]
     public async ValueTask RenameAsync(
         SlashCommandContext context,
-        [Description("Board to rename")] [SlashAutoCompleteProvider<BoardAutoCompleteProvider>] string board,
+        [Description("Board to rename")][SlashAutoCompleteProvider<BoardAutoCompleteProvider>] string board,
         [Description("New board name")] string name)
     {
         var selectedBoard = await _boardResolver.ResolveAsync(context.Guild!.Id, context.User.Id, board);
@@ -152,12 +154,12 @@ public class BoardsCommandGroup
             .WithDescription($"Renamed **{oldName}** to **{selectedBoard.Name}**."));
     }
 
-    [Command("set-team")]
-    [Description("Set or clear the team that owns a board.")]
+    [Command("set-group")]
+    [Description("Set or clear the group that owns a board.")]
     public async ValueTask SetTeamAsync(
         SlashCommandContext context,
-        [Description("Board to update")] [SlashAutoCompleteProvider<BoardAutoCompleteProvider>] string board,
-        [Description("Team to assign; omit to clear")] [SlashAutoCompleteProvider<TeamAutoCompleteProvider>] string? team = null)
+        [Description("Board to update")][SlashAutoCompleteProvider<BoardAutoCompleteProvider>] string board,
+        [Description("Group to assign; omit to clear")][SlashAutoCompleteProvider<TeamAutoCompleteProvider>] string? team = null)
     {
         var selectedBoard = await _boardResolver.ResolveAsync(context.Guild!.Id, context.User.Id, board);
 
@@ -193,7 +195,7 @@ public class BoardsCommandGroup
     [Description("Delete an empty, non-default board.")]
     public async ValueTask DeleteAsync(
         SlashCommandContext context,
-        [Description("Board to delete")] [SlashAutoCompleteProvider<BoardAutoCompleteProvider>] string board)
+        [Description("Board to delete")][SlashAutoCompleteProvider<BoardAutoCompleteProvider>] string board)
     {
         var selectedBoard = await _boardResolver.ResolveAsync(context.Guild!.Id, context.User.Id, board);
 

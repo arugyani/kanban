@@ -16,11 +16,11 @@ public static class BoardHelper
     {
         var embed = new DiscordEmbedBuilder()
             .WithDefaultColor()
-            .WithAuthor("KanbanCord Board")
+            .WithAuthor("RGBOO Board")
             .WithTitle(board?.Name ?? "Board");
 
         if (team is not null)
-            embed.WithFooter($"Team: {team.Name}");
+            embed.WithFooter($"Group: {team.Name}");
 
         if (boardStatus is not null)
         {
@@ -31,15 +31,21 @@ public static class BoardHelper
         else
         {
             var backlogString = await boardItems.GetBoardTaskString(client, BoardStatus.Backlog);
-            embed.AddField("Backlog", backlogString);
-        
+            embed.AddField(BoardStatus.Backlog.ToFormattedString(), backlogString);
+
+            var upNextString = await boardItems.GetBoardTaskString(client, BoardStatus.UpNext);
+            embed.AddField(BoardStatus.UpNext.ToFormattedString(), upNextString);
+
             var inProgressString = await boardItems.GetBoardTaskString(client, BoardStatus.InProgress);
-            embed.AddField("In Progress", inProgressString);
-        
+            embed.AddField(BoardStatus.InProgress.ToFormattedString(), inProgressString);
+
+            var waitingString = await boardItems.GetBoardTaskString(client, BoardStatus.Waiting);
+            embed.AddField(BoardStatus.Waiting.ToFormattedString(), waitingString);
+
             var completedString = await boardItems.GetBoardTaskString(client, BoardStatus.Completed);
-            embed.AddField("Completed", completedString);
+            embed.AddField(BoardStatus.Completed.ToFormattedString(), completedString);
         }
-        
+
         return embed;
     }
 }

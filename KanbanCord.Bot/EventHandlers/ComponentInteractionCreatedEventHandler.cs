@@ -2,7 +2,6 @@ using DSharpPlus;
 using DSharpPlus.Entities;
 using DSharpPlus.EventArgs;
 using DSharpPlus.Interactivity;
-using KanbanCord.Bot.Extensions;
 using KanbanCord.Bot.Helpers;
 using KanbanCord.Core.Constants;
 using KanbanCord.Core.Models;
@@ -11,128 +10,206 @@ using MongoDB.Bson;
 
 namespace KanbanCord.Bot.EventHandlers;
 
-public class ComponentInteractionCreatedEventHandler  :IEventHandler<ComponentInteractionCreatedEventArgs>
+public sealed class ComponentInteractionCreatedEventHandler : IEventHandler<ComponentInteractionCreatedEventArgs>
 {
     private readonly ITaskItemRepository _repository;
+    private readonly BoardResolver _boardResolver;
+    private readonly ILogger<ComponentInteractionCreatedEventHandler> _logger;
 
-    public ComponentInteractionCreatedEventHandler(ITaskItemRepository repository)
+    public ComponentInteractionCreatedEventHandler(
+        ITaskItemRepository repository,
+        BoardResolver boardResolver,
+        ILogger<ComponentInteractionCreatedEventHandler> logger)
     {
         _repository = repository;
-    }
-    
-    
-    public async Task HandleEventAsync(DiscordClient sender, ComponentInteractionCreatedEventArgs eventArgs)
-    {
-        if (eventArgs.Id == "board-refresh")
-            await HandleRefreshButtonClicked(sender, eventArgs);
-        
-        if (eventArgs.Id.EndsWith(".add-comment"))
-            await HandleCommentButtonClicked(sender, eventArgs);
+        _boardResolver = boardResolver;
+        _logger = logger;
     }
 
-    private async Task HandleRefreshButtonClicked(DiscordClient sender, ComponentInteractionCreatedEventArgs eventArgs)
+    public async Task HandleEventAsync(
+        DiscordClient sender,
+        ComponentInteractionCreatedEventArgs eventArgs)
     {
-        var boardItems = await _repository.GetAllTaskItemsByGuildIdAsync(eventArgs.Guild.Id);
-        
-        var embed = await BoardHelper.GetBoardEmbed(sender, boardItems);
-        
-        var hasChanged = false;
+        if (eventArgs.Guild is null)
+            return;
 
-        foreach (var field in eventArgs.Message.Embeds[0].Fields!)
-        {
-            if (embed.Fields!.All(x => x.Value != field.Value))
-                hasChanged = true;
-        }
+        var separator = eventArgs.Id.IndexOf('.');
+        if (separator <= 0 || !ObjectId.TryParse(eventArgs.Id[..separator], out var cardId))
+            return;
+        var action = eventArgs.Id[(separator + 1)..];
+        if (action is not ("join" or "move-next" or "done" or "waiting" or "add-note" or "add-comment"))
+            return;
 
-        if (!hasChanged)
+        if (action is "add-note" or "add-comment")
         {
-            var followupMessage = new DiscordInteractionResponseBuilder()
-                .WithContent("Board already up to date.")
-                .AsEphemeral();
-            
-            await eventArgs.Interaction.CreateResponseAsync(DiscordInteractionResponseType.ChannelMessageWithSource, followupMessage);
+            await OpenNoteModalAsync(sender, eventArgs, cardId);
             return;
         }
-        
-        var refreshButton = new DiscordButtonComponent(
-            DiscordButtonStyle.Secondary,
-            "refresh",
-            "Refresh",
-            false,
-            new DiscordComponentEmoji(
-                DiscordEmoji.FromName(sender, ":arrows_counterclockwise:"))
-        );
-        
-        var response = new DiscordInteractionResponseBuilder()
-            .AddEmbed(embed)
-            .AddActionRowComponent(refreshButton);
 
-        await eventArgs.Interaction.CreateResponseAsync(DiscordInteractionResponseType.UpdateMessage, response);
-    }
-    
-    private async Task HandleCommentButtonClicked(DiscordClient sender, ComponentInteractionCreatedEventArgs eventArgs)
-    {
-        var taskId = eventArgs.Id.Split(".")[0];
-        
-        var taskItem = ObjectId.TryParse(taskId, out var objectId)
-            ? await _repository.GetTaskItemByObjectIdOrDefaultAsync(objectId, eventArgs.Guild.Id)
-            : null;
-        
-        if (taskItem is null)
+        await DeferPrivateAsync(eventArgs.Interaction);
+        try
         {
-            var embed = new DiscordEmbedBuilder()
-                .WithDefaultColor()
-                .WithDescription(
-                    "The selected task was not found, please try again.");
-            
-            await eventArgs.Interaction.CreateResponseAsync(
-                DiscordInteractionResponseType.ChannelMessageWithSource,
-                new DiscordInteractionResponseBuilder()
-                    .AddEmbed(embed));
-            
-            return;
+            var card = await _repository.GetTaskItemByObjectIdOrDefaultAsync(cardId, eventArgs.Guild.Id);
+            var board = card?.BoardId is null
+                ? null
+                : await _boardResolver.ResolveEditableAsync(
+                    eventArgs.Guild.Id,
+                    eventArgs.User.Id,
+                    card.BoardId.Value.ToString());
+            if (card is null || board is null)
+            {
+                await EditPrivateAsync(eventArgs.Interaction, "That card could not be found, or you only have view access.");
+                return;
+            }
+
+            var message = action switch
+            {
+                "join" => Join(card, eventArgs.User.Id),
+                "move-next" => MoveNext(card),
+                "done" => MarkDone(card),
+                "waiting" => MarkWaiting(card),
+                _ => throw new InvalidOperationException("Unsupported card action."),
+            };
+            var expectedVersion = card.Version;
+            card.LastUpdatedAt = DateTime.UtcNow;
+            card.RecordChange(
+                eventArgs.User.Id,
+                action == "join" ? "people_changed" : "card_moved",
+                message.Replace("**", string.Empty, StringComparison.Ordinal));
+            if (!await _repository.TryUpdateTaskItemAsync(card, expectedVersion))
+            {
+                await EditPrivateAsync(eventArgs.Interaction, "This card changed a moment ago. Open it again and retry.");
+                return;
+            }
+
+            await EditPrivateAsync(eventArgs.Interaction, message);
         }
-        
-        var modal = new DiscordInteractionResponseBuilder()
+        catch (Exception exception)
+        {
+            _logger.LogError(
+                exception,
+                "Card component interaction failed. GuildId: {GuildId}; UserId: {UserId}; Action: {Action}",
+                eventArgs.Guild.Id,
+                eventArgs.User.Id,
+                action);
+            await EditPrivateAsync(eventArgs.Interaction, "That change could not be saved. Please try again.");
+        }
+    }
+
+    private async Task OpenNoteModalAsync(
+        DiscordClient sender,
+        ComponentInteractionCreatedEventArgs eventArgs,
+        ObjectId cardId)
+    {
+        var modal = new DiscordModalBuilder()
             .WithCustomId(Guid.NewGuid().ToString())
-            .WithTitle("Add a comment to a task")
-            .AddTextInputComponent(new DiscordTextInputComponent(
-                "Comment:",
-                "commentField",
-                "Put your comment here",
+            .WithTitle("Add a note")
+            .AddTextInput(new DiscordTextInputComponent(
+                "noteField",
+                "Share an update with the group",
+                required: true,
                 max_length: Limits.TaskCommentMaxLength,
                 min_length: Limits.TaskCommentMinLength,
-                style: DiscordTextInputStyle.Paragraph));
-        
+                style: DiscordTextInputStyle.Paragraph), "Note", "This will be visible to everyone on the card.");
         await eventArgs.Interaction.CreateResponseAsync(DiscordInteractionResponseType.Modal, modal);
-        
-        var interaction = sender.ServiceProvider.GetRequiredService<InteractivityExtension>();
-        
-        var response = await interaction.WaitForModalAsync(modal.CustomId, TimeSpan.FromMinutes(5));
-        
-        if (!response.TimedOut)
+
+        var interactivity = sender.ServiceProvider.GetRequiredService<InteractivityExtension>();
+        var response = await interactivity.WaitForModalAsync(modal.CustomId, TimeSpan.FromMinutes(5));
+        if (response.TimedOut)
+            return;
+
+        var modalInteraction = response.Result.Interaction;
+        await DeferPrivateAsync(modalInteraction);
+        try
         {
-            var modalInteraction = response.Result.Values;
-            
-            taskItem.Comments.Add(new Comment
+            var card = await _repository.GetTaskItemByObjectIdOrDefaultAsync(cardId, eventArgs.Guild!.Id);
+            var board = card?.BoardId is null
+                ? null
+                : await _boardResolver.ResolveEditableAsync(
+                    eventArgs.Guild.Id,
+                    eventArgs.User.Id,
+                    card.BoardId.Value.ToString());
+            if (card is null || board is null)
+            {
+                await EditPrivateAsync(modalInteraction, "That card could not be found, or you only have view access.");
+                return;
+            }
+
+            var expectedVersion = card.Version;
+            card.Comments.Add(new Comment
             {
                 AuthorId = eventArgs.User.Id,
-                Text = modalInteraction["commentField"]
+                Text = ((TextInputModalSubmission)response.Result.Values["noteField"]).Value,
             });
-            
-            await _repository.UpdateTaskItemAsync(taskItem);
-
-            var commands = await sender.GetGlobalApplicationCommandsAsync();
-            
-            var embed = new DiscordEmbedBuilder()
-                .WithDefaultColor()
-                .WithDescription(
-                    $"A comment has been added to task \"{taskItem.Title}\". View it using {commands.GetMention(["task", "view"])}.");
-            
-            await response.Result.Interaction.CreateResponseAsync(
-                DiscordInteractionResponseType.ChannelMessageWithSource,
-                new DiscordInteractionResponseBuilder()
-                    .AddEmbed(embed));
+            card.LastUpdatedAt = DateTime.UtcNow;
+            card.RecordChange(eventArgs.User.Id, "comment_added", $"A note was added to {card.Title}.");
+            var saved = await _repository.TryUpdateTaskItemAsync(card, expectedVersion);
+            var confirmation = saved
+                ? $"Your note was added to **{card.Title}**."
+                : "This card changed while the note window was open. Please add the note again.";
+            await EditPrivateAsync(modalInteraction, confirmation);
         }
+        catch (Exception exception)
+        {
+            _logger.LogError(
+                exception,
+                "Card note modal failed. GuildId: {GuildId}; UserId: {UserId}",
+                eventArgs.Guild.Id,
+                eventArgs.User.Id);
+            await EditPrivateAsync(modalInteraction, "That note could not be saved. Please try again.");
+        }
+    }
+
+    internal static string Join(TaskItem card, ulong userId)
+    {
+        if (card.AssigneeId == userId || card.AssigneeIds.Contains(userId))
+            return $"You’re already on **{card.Title}**.";
+        card.AssigneeIds.Add(userId);
+        card.AssigneeId ??= userId;
+        card.AssigneeTeamId = null;
+        return $"You joined **{card.Title}**.";
+    }
+
+    internal static string MoveNext(TaskItem card)
+    {
+        card.Status = card.Status switch
+        {
+            BoardStatus.Backlog => BoardStatus.UpNext,
+            BoardStatus.UpNext => BoardStatus.InProgress,
+            BoardStatus.InProgress => BoardStatus.Completed,
+            BoardStatus.Waiting => BoardStatus.InProgress,
+            _ => card.Status,
+        };
+        card.BlockedReason = null;
+        return $"**{card.Title}** moved to **{card.Status.ToFormattedString()}**.";
+    }
+
+    internal static string MarkDone(TaskItem card)
+    {
+        card.Status = BoardStatus.Completed;
+        card.BlockedReason = null;
+        return $"**{card.Title}** is done.";
+    }
+
+    internal static string MarkWaiting(TaskItem card)
+    {
+        card.Status = BoardStatus.Waiting;
+        card.BlockedReason ??= "Waiting on an update";
+        return $"**{card.Title}** moved to **Waiting**.";
+    }
+
+    private static Task DeferPrivateAsync(DiscordInteraction interaction)
+    {
+        return interaction.CreateResponseAsync(
+            DiscordInteractionResponseType.DeferredChannelMessageWithSource,
+            new DiscordInteractionResponseBuilder().AsEphemeral());
+    }
+
+    private static Task<DiscordMessage> EditPrivateAsync(
+        DiscordInteraction interaction,
+        string message)
+    {
+        return interaction.EditOriginalResponseAsync(
+            new DiscordWebhookBuilder().WithContent(message));
     }
 }

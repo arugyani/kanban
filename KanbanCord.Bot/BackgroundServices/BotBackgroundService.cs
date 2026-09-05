@@ -18,9 +18,9 @@ public class BotBackgroundService : IHostedService
     public async Task StartAsync(CancellationToken token)
     {
         DiscordActivity status = new("out for work", DiscordActivityType.Watching);
-        
+
         await _discordClient.ConnectAsync(status, DiscordUserStatus.Online);
-        
+
         _logger.LogInformation("Bot User: {username} ({userId})", _discordClient.CurrentUser.Username, _discordClient.CurrentUser.Id);
         _logger.LogInformation("Application Version: {version}", Assembly.GetExecutingAssembly().GetName().Version!.ToString());
     }

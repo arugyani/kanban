@@ -1,204 +1,114 @@
-<a href="https://discord.com/oauth2/authorize?client_id=1301269207073165444">
-  <p align="center">
-    <img width="150" src=".github/images/logo.png"/>
-  </p>
-</a>
+# RGBOO Discord Board bot
 
-<h1 align="center">KanbanCord</h1>
+The Discord bot and private HTTP backend for the RGBOO Board. Discord commands
+and the website share the same repository layer and MongoDB documents, so there
+is no copied data or synchronization service.
 
-<p align="center">
-  Simple Kanban boards for Discord teams. The idea came from <a href="https://github.com/seansylee" target="_blank">seansylee</a> who made <a href="https://github.com/seansylee/kanban-board-bot" target="_blank">kanban-board-bot</a> which is no longer maintained.
-</p>
+This project started from
+[KanbanCord](https://github.com/j4asper/KanbanCord) and retains its MIT license.
 
-[![Publish Docker Image](https://github.com/j4asper/KanbanCord/actions/workflows/build-and-publish-docker-image.yml/badge.svg)](https://github.com/j4asper/KanbanCord/actions/workflows/build-and-publish-docker-image.yml)
+DSharpPlus 5 is still distributed as prerelease builds. This repository pins an
+exact, tested build in the central package file and NuGet lockfiles instead of
+floating to a newer nightly release automatically.
 
-[![Invite Bot](https://img.shields.io/badge/Invite%20Bot-7289DA?style=for-the-badge&logo=discord&logoColor=white)](https://discord.com/oauth2/authorize?client_id=1301269207073165444)
+## Requirements
 
-[![Support Server](https://img.shields.io/badge/Support%20Server-7289DA?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/su3nBRWPej)
+- .NET 10 LTS SDK (selected by `global.json`)
+- a Discord application and bot
+- MongoDB
 
-![Example](.github/images/example.png)
+Enable **Server Members Intent** in the Discord developer portal. It lets the
+website list the small guild roster for group assignment. The bot needs the
+`applications.commands` and `bot` installation scopes.
 
-## Table of Contents
+## Discord surface
 
-<!-- TOC -->
-  * [Table of Contents](#table-of-contents)
-  * [What is a Kanban Board](#what-is-a-kanban-board)
-  * [Setup](#setup)
-    * [Docker](#docker)
-      * [Image](#image)
-      * [Variables](#variables)
-      * [Database](#database)
-    * [Docker Compose](#docker-compose)
-    * [Build from source](#build-from-source)
-  * [Logs](#logs)
-  * [Commands](#commands)
-    * [General Commands](#general-commands)
-    * [Task Management](#task-management)
-<!-- TOC -->
+- `/my-list` shows cards involving you.
+- `/card add`, `open`, `update`, `move`, `people`, `note`, `checklist`, and
+  `github` cover normal card work.
+- `/card update` can change title, notes, tags, date, importance, and waiting
+  state in one private command.
+- `/board recap` summarizes a board.
+- Right-click a message, choose **Apps → Add to The Board**, and the bot creates
+  one linked card. A unique MongoDB index makes Discord retries safe.
+- Card responses provide Join this, Move, Mark done, Waiting, Add note, and Open
+  The Board actions.
 
-## What is a Kanban Board
+Normal card responses are private unless a person deliberately requests a
+shared recap.
+Group membership, roles, themes, boards, and the five visible columns remain in
+the website's organizer screens.
 
-A Kanban board is a visual tool used to organize tasks and workflows. It typically consists of columns representing different stages of a process (e.g., "To Do," "In Progress," "Done"). Tasks are represented as cards that can be moved between columns as they progress. The KanbanCord Discord Bot brings this concept to Discord, allowing users to create and manage Kanban boards directly within their server for efficient task management and team collaboration.
+## Configuration
 
-## Setup
+ASP.NET Core maps double underscores in environment variable names to nested
+configuration.
 
-### Docker
+| Variable                              | Purpose                                                                             |
+| ------------------------------------- | ----------------------------------------------------------------------------------- |
+| `Discord__Token`                      | Discord bot token                                                                   |
+| `Database__ConnectionString`          | MongoDB connection string                                                           |
+| `Database__Name`                      | Database name; defaults to `KanbanCord`                                             |
+| `Web__ApiKey`                         | Service credential of at least 32 random bytes, shared only with the website Worker |
+| `Web__AdministratorDiscordUserIds__0` | Bootstrap administrator Discord ID                                                  |
+| `Web__PublicBoardUrl`                 | Deployed Cloudflare URL used by the bot's **Open The Board** button                 |
+| `UptimeMonitor__Enabled`              | Enables the optional push heartbeat                                                 |
+| `UptimeMonitor__PushUrl`              | External monitor heartbeat URL                                                      |
+| `UptimeMonitor__PushInterval`         | Heartbeat interval, for example `00:05:00`                                          |
 
-#### Image
+Add more administrator IDs with increasing array indexes. Store all secrets in
+Fly or another runtime secret store, never in `appsettings.json`.
 
-Docker image for KanbanCord is available on the docker hub here: https://hub.docker.com/r/jazper/kanbancord
+## Run and verify
 
-#### Variables
-
-These variables are Environment variables
-
-| Variable                      | Description                                                                                  | Required | Default value |
-|-------------------------------|----------------------------------------------------------------------------------------------|----------|---------------|
-| `Discord__Token`              | Your discord application token (bot token).                                                  | Yes      | None          |
-| `Discord__SupportInvite`      | Support discord server invite link. Not needed when self hosting.                            | No       | None          |
-| `Database__ConnectionString`  | MongoDB Connection String eg. `mongodb://localhost:27017`.                                   | Yes      | None          |
-| `Database__Name`              | MongoDB Database Name, if you want to change it from the default value.                      | No       | `KanbanCord`  |
-| `UptimeMonitor__Enabled`      | Whether to enable the uptime monitor, made for uptime kuma, but may work for other services. | No       | `false`       |
-| `UptimeMonitor__PushUrl`      | The Url to make a request to for the uptime monitor.                                         | No       | None          |
-| `UptimeMonitor__PushInterval` | A TimeSpan interval for making requests to the uptime monitor push url.                      | No       | 1 Minute      |
-
-#### Database
-
-A [MongoDB](https://www.mongodb.com/) is required for this bot to run. [A Docker image is available here](https://hub.docker.com/r/mongodb/mongodb-community-server).
-
-KanbanCord will automatically create the required collections on startup, if they are missing.
-
-| Collection Name |
-|-----------------|
-| Tasks           |
-| Settings        |
-| Boards          |
-| Teams           |
-
-### Docker Compose
-
-A docker-compose file is available here: [docker-compose.yml](docker-compose.yml). This will setup the bot and a MongoDB database, the only thing you have to do, is to update the bot token.
-
-### Build from source
-
-You will need to clone the repository first:
-
-```console
-git clone https://github.com/j4asper/KanbanCord
+```bash
+dotnet restore --locked-mode
+dotnet run --project KanbanCord.Bot
 ```
 
-Then you need to build the docker image, you need to be in the same directory as the [Dockerfile](Dockerfile):
-
-```console
-docker build -t kanbancord .
+```bash
+dotnet format --no-restore --verify-no-changes
+dotnet build --no-restore --configuration Release
+dotnet test --no-restore --no-build --configuration Release
+dotnet list KanbanCord.Bot/KanbanCord.Bot.csproj package --vulnerable --include-transitive --no-restore
+dotnet list KanbanCord.Core/KanbanCord.Core.csproj package --vulnerable --include-transitive --no-restore
+dotnet list KanbanCord.Tests/KanbanCord.Tests.csproj package --vulnerable --include-transitive --no-restore
+docker build .
 ```
 
-Now you can run the bot, and add the required environment variables:
+The service listens on the configured ASP.NET URL. `/health` checks Discord and
+MongoDB without requiring the website API key.
 
-```console
-docker run -d -e Discord__Token=your-bot-token -e Database__ConnectionString=your-mongodb-connection-string kanbancord
-```
+For a containerized local stack, copy `.env.example` to `.env`, fill in
+`DISCORD_TOKEN`, `WEB_API_KEY`, and `ADMIN_DISCORD_USER_ID`, then run
+`docker compose up --build`. This builds the checked-out source, starts MongoDB
+8, waits for it to become healthy, and exposes the bot API at
+`http://localhost:5000`. `PUBLIC_BOARD_URL` and `DATABASE_NAME` are optional.
 
-## Logs
+## Website API
 
-The bot uses **Serilog** for logging, with the default log file written to `/logs/kanbancord-log.txt`. You can customize the logging settings through the [appsettings.json](KanbanCord.Bot/appsettings.json) file or override them using environment variables that follow the configuration structure. If you're running the bot in a Docker container, you can bind the log file path to the container to easily access and review the logs. For more information on configuring environment variables, check the official [ASP.NET Core Configuration documentation](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/configuration/?view=aspnetcore-9.0#naming-of-environment-variables).
+Every `/api/*` request requires `Authorization: Bearer <Web__ApiKey>`, plus the
+trusted `X-Discord-Guild-Id` and `X-Discord-User-Id` headers added by the
+Cloudflare Worker. The API re-fetches the Discord member and applies group roles
+before reading or writing MongoDB.
 
-## Commands
+Routes cover the dashboard, five customizable columns, card
+creation/editing/ordering, comments, checklists, GitHub issue links, source
+Discord links, durable change history, groups, per-group roles, and boards.
+Website and Discord updates use optimistic versions instead of overwriting a
+newer edit.
 
-Commands with a star (*) after the name require the user to have the **Manage Messages** permission on the Discord server.
+The process reuses one MongoDB connection pool. Startup creates named indexes
+for board reads, group/board names, and Discord source-message deduplication.
+Model and index changes remain compatible with older cards that lack the newer
+fields.
 
-You can also customize the accessibility of the commands in your server settings. To do so, go to **Server Settings** > **Integrations** > **KanbanCord**. Here, you can choose specific commands and restrict them to certain roles or channels as needed.
+## Deployment
 
-### General Commands
+`fly.toml` keeps one machine running, uses rolling deploys, and checks `/health`.
+The GitHub `production` Environment needs a narrowly scoped `FLY_API_TOKEN`.
+After CI passes on `main`, the deployment workflow publishes and then checks the
+public health endpoint. Runtime application settings remain Fly secrets.
 
-- `/board`  
-  Displays a selected Kanban board (or the backward-compatible Default board).
-
-- `/boards list`
-  Lists every board in the server, its team, and its task count.
-
-- `/boards create` *
-  Creates a named board, optionally owned by a team.
-
-- `/boards rename` *
-  Renames a board.
-
-- `/boards set-team` *
-  Assigns a board to a team, or clears its team.
-
-- `/boards delete` *
-  Deletes an empty non-default board.
-
-- `/team list`
-  Lists teams and their people.
-
-- `/team create` *
-  Creates a team.
-
-- `/team add-person` * / `/team remove-person` *
-  Maintains a team's Discord-user roster.
-
-- `/team delete` *
-  Deletes a team after it has been detached from boards and tasks.
-
-- `/people`
-  Shows a board's contributors and owning team.
-  
-- `/archive`  
-  Displays all archived tasks.
-
-- `/repository`  
-  Get the repository URL and additional information about the bot.
-
-- `/stats`  
-  Displays bot statistics (e.g., task count, active users, etc.).
-
-### Task Management
-
-- `/clear` *  
-  Clears the Kanban board completely, archiving all current tasks.
-
-- `/reset` *  
-  Resets the Kanban board, deleting all current and archived tasks.
-
-- `/task add` *  
-  Add a new task to a selected board's backlog.
-
-- `/task edit` *  
-  Edit a task's title and/or description.
-
-- `/task delete` *  
-  Completely deletes a task, bypassing the archive and making it unrecoverable.
-
-- `/task view`  
-  View detailed information about a task, including description, author, and comments.
-
-- `/task start` *  
-  Move a task from the Backlog to In-Progress.
-
-- `/task complete` *  
-  Move a task from In-Progress to Completed.
-
-- `/task archive` *  
-  Archive a task and move it to the archived tasks list.
-
-- `/task move` *  
-  Move a task between columns (e.g., Backlog, In-Progress, Completed).
-
-- `/task transfer` *
-  Transfer a task to another board without deleting its history.
-
-- `/task assign` *  
-  Assign a task to a person or a team.
-
-- `/task me` *  
-  View all tasks assigned to you.
-
-- `/task user`  
-  View all tasks assigned to a specified user.
-
-- `/task priority` *  
-  Set or adjust the priority level of a task.
-
-- `/task comment` *  
-  Add a comment to a task.
+Console output is the only production log sink so Fly can retain and search it;
+the non-root container does not write local log files.

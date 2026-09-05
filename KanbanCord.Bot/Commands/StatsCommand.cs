@@ -15,18 +15,18 @@ public class StatsCommand
     public async ValueTask ExecuteAsync(SlashCommandContext context)
     {
         var version = Assembly.GetExecutingAssembly().GetName().Version!;
-        
+
         var guildCount = context.Client.Guilds.Count;
-        
+
         var heapMemory = $"{GC.GetTotalMemory(false) / 1024 / 1024:n0} MB";
 
-        using var process  = Process.GetCurrentProcess();
+        using var process = Process.GetCurrentProcess();
         var uptime = DateTimeOffset.UtcNow.Subtract(process.StartTime);
         var uptimeDays = uptime.Days;
         var remainingHours = uptime.Hours % 24;
-        
+
         var latency = context.Client.GetConnectionLatency(context.Guild!.Id).Milliseconds;
-        
+
         var embed = new DiscordEmbedBuilder()
             .WithDefaultColor()
             .WithThumbnail(context.Client.CurrentUser.AvatarUrl)
@@ -35,7 +35,7 @@ public class StatsCommand
             .AddField("Memory Usage:", heapMemory)
             .AddField("Uptime:", $"{uptimeDays} days, {remainingHours} hours")
             .AddField("Bot Version:", $"v{version.Major}.{version.Minor}.{version.Build}");
-        
+
         await context.RespondAsync(embed);
     }
 }

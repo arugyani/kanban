@@ -12,6 +12,7 @@
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
         <PackageReference Include="Mongo2Go" />
         <PackageReference Include="Moq" />
         <PackageReference Include="xunit" />
@@ -26,6 +27,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\KanbanCord.Bot\KanbanCord.Bot.csproj" />
       <ProjectReference Include="..\KanbanCord.Core\KanbanCord.Core.csproj" />
     </ItemGroup>
 

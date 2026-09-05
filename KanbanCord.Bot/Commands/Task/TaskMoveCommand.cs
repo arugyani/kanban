@@ -13,43 +13,53 @@ namespace KanbanCord.Bot.Commands.Task;
 partial class TaskCommandGroup
 {
     [Command("move")]
-    [Description("Move a task from one column to another.")]
+    [Description("Move a card to another column.")]
     public async ValueTask TaskMoveCommand(
         SlashCommandContext context,
-        [Description("Search for the task to select")] [SlashAutoCompleteProvider<AllTaskItemsAutoCompleteProvider>] string task,
+        [Description("Card to move")][SlashAutoCompleteProvider<AllTaskItemsAutoCompleteProvider>] string task,
         [SlashChoiceProvider<ColumnChoiceProvider>] int to)
     {
+        await context.DeferResponseAsync(ephemeral: true);
+
         var taskItem = await GetTaskAsync(context, task);
 
         var embed = new DiscordEmbedBuilder()
             .WithDefaultColor();
-        
+
         if (taskItem is null)
         {
-            embed.WithDescription("The selected task was not found, please try again.");
-            
-            await context.RespondAsync(embed);
+            embed.WithDescription("That card could not be found.");
+
+            await context.EditDeferredResponseAsync(embed);
             return;
         }
-        
+
         if (taskItem.Status == (BoardStatus)to)
         {
-            embed.WithDescription($"The selected task is already in column **{((BoardStatus)to).ToFormattedString()}**.");
-            
-            await context.RespondAsync(embed);
+            embed.WithDescription($"That card is already in **{((BoardStatus)to).ToFormattedString()}**.");
+
+            await context.EditDeferredResponseAsync(embed);
             return;
         }
-        
+
         var fromColumn = taskItem.Status;
-        
+
         taskItem.Status = (BoardStatus)to;
+        if (taskItem.Status == BoardStatus.Waiting && string.IsNullOrWhiteSpace(taskItem.BlockedReason))
+            taskItem.BlockedReason = "Waiting on an update";
+        else if (taskItem.Status != BoardStatus.Waiting)
+            taskItem.BlockedReason = null;
         taskItem.LastUpdatedAt = DateTime.UtcNow;
-        
+        taskItem.RecordChange(
+            context.User.Id,
+            "card_moved",
+            $"{taskItem.Title} moved to {((BoardStatus)to).ToFormattedString()}.");
+
         await _taskItemRepository.UpdateTaskItemAsync(taskItem);
-        
+
         embed.WithDescription(
-                $"The task \"{taskItem.Title}\" has been moved from **{fromColumn.ToFormattedString()}** to **{((BoardStatus)to).ToFormattedString()}**.");
-        
-        await context.RespondAsync(embed);
+                $"**{taskItem.Title}** moved from **{fromColumn.ToFormattedString()}** to **{((BoardStatus)to).ToFormattedString()}**.");
+
+        await context.EditDeferredResponseAsync(embed);
     }
 }

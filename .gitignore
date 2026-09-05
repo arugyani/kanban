@@ -398,3 +398,12 @@ FodyWeavers.xsd
 *.sln.iml
 
 .idea
+
+# Local runtime credentials and deployment state
+.env
+.env.*
+!.env.example
+appsettings.Development.json
+appsettings.Local.json
+*.secrets.json
+.fly/

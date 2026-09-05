@@ -19,7 +19,7 @@ public static class CommandHelper
             ? command.GetSubcommandMention(commands.Skip(1).ToArray())
             : fallback;
     }
-    
+
     public static string GetDescription(this IReadOnlyList<DiscordApplicationCommand> applicationCommands, string[] commands)
     {
         var command = applicationCommands.FirstOrDefault(x => x.Name == commands.First());

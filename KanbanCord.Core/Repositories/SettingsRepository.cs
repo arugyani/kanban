@@ -11,12 +11,12 @@ public class SettingsRepository : ISettingsRepository
     {
         _collection = mongoDatabase.GetCollection<Settings>(nameof(RequiredCollections.Settings));
     }
-    
-    
+
+
     public async Task<Settings?> GetByIdOrDefaultAsync(ulong guildId)
     {
         var settings = await _collection.Find(x => x.GuildId == guildId).FirstOrDefaultAsync();
-        
+
         return settings;
     }
 
