@@ -60,6 +60,7 @@ version conflicts, validation, and destructive guards when those paths change.
 ## Delivery
 
 CI runs on every pull request and `main` push. A green `main` deploys the Fly app
-through a protected GitHub `production` Environment. Keep `/health` independent
-of the authenticated board API so Fly and the website readiness check can use it.
+through a protected GitHub `production` Environment once the repository-level
+`ENABLE_DEPLOYMENTS` Actions variable is `true`. Keep `/health` independent of
+the authenticated board API so Fly and the website readiness check can use it.
 Never put tokens or card contents in logs, source, workflow arguments, or images.

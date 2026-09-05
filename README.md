@@ -107,8 +107,10 @@ fields.
 
 `fly.toml` keeps one machine running, uses rolling deploys, and checks `/health`.
 The GitHub `production` Environment needs a narrowly scoped `FLY_API_TOKEN`.
-After CI passes on `main`, the deployment workflow publishes and then checks the
-public health endpoint. Runtime application settings remain Fly secrets.
+After adding that secret, set the repository Actions variable
+`ENABLE_DEPLOYMENTS` to `true`. A passing `main` pipeline then publishes and
+checks the public health endpoint. Until the variable is enabled, deploy jobs
+remain safely skipped. Runtime application settings remain Fly secrets.
 
 Console output is the only production log sink so Fly can retain and search it;
 the non-root container does not write local log files.
