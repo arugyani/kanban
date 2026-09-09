@@ -1,10 +1,11 @@
 using KanbanCord.Core.Models;
+using KanbanCord.Core.Repositories;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
 namespace KanbanCord.Bot.BackgroundServices;
 
-public class DatabaseSetupBackgroundService : BackgroundService
+public class DatabaseSetupBackgroundService : IHostedService
 {
     private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly ILogger<DatabaseSetupBackgroundService> _logger;
@@ -15,7 +16,7 @@ public class DatabaseSetupBackgroundService : BackgroundService
         _logger = logger;
     }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    public async Task StartAsync(CancellationToken stoppingToken)
     {
         using var scope = _serviceScopeFactory.CreateScope();
         var database = scope.ServiceProvider.GetRequiredService<IMongoDatabase>();
@@ -26,6 +27,8 @@ public class DatabaseSetupBackgroundService : BackgroundService
                 "Created missing MongoDB collection(s): {Collections}",
                 string.Join(", ", createdCollections));
     }
+
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     internal static async Task<IReadOnlyList<string>> EnsureDatabaseAsync(
         IMongoDatabase database,
@@ -50,6 +53,7 @@ public class DatabaseSetupBackgroundService : BackgroundService
         }
 
         await EnsureIndexesAsync(database, cancellationToken);
+        await new TaskItemRepository(database).BackfillReferencesAsync(cancellationToken);
         return createdCollections;
     }
 
@@ -81,6 +85,13 @@ public class DatabaseSetupBackgroundService : BackgroundService
                 }),
         };
         await tasks.Indexes.CreateManyAsync(taskIndexes, cancellationToken);
+
+        var numbers = database.GetCollection<CardNumber>(nameof(RequiredCollections.CardNumbers));
+        await numbers.Indexes.CreateOneAsync(
+            new CreateIndexModel<CardNumber>(
+                Builders<CardNumber>.IndexKeys.Ascending(number => number.GuildId).Ascending(number => number.Number),
+                new CreateIndexOptions { Name = "guild_card_number_unique", Unique = true }),
+            cancellationToken: cancellationToken);
 
         var boards = database.GetCollection<Board>(nameof(RequiredCollections.Boards));
         await boards.Indexes.CreateOneAsync(

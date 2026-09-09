@@ -135,7 +135,7 @@ partial class TaskCommandGroup
                 var embed = new DiscordEmbedBuilder()
                     .WithDefaultColor()
                     .WithDescription(
-                        $"**{newTask.Title}** was added to **{selectedBoard.Name}**. Use `/board recap` to see it.");
+                        $"**{newTask.Key} · {newTask.Title}** was added to **{selectedBoard.Name}**. Use `/board recap` to see it.");
 
                 await modalInteraction.EditOriginalResponseAsync(
                     new DiscordWebhookBuilder().AddEmbed(embed));

@@ -79,7 +79,7 @@ public sealed class MessageContextMenuEventHandler : IEventHandler<ContextMenuIn
 
         await RespondAsync(
             eventArgs,
-            $"Added **{card.Title}** to **{board.Name}**. Use `/card open` to update it.");
+            $"Added **{card.Key} · {card.Title}** to **{board.Name}**. Use `/card open` to update it.");
     }
 
     internal static string TitleFor(string? content, string? author)

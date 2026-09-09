@@ -7,15 +7,18 @@ namespace KanbanCord.Core.Repositories;
 public class TaskItemRepository : ITaskItemRepository
 {
     private readonly IMongoCollection<TaskItem> _collection;
+    private readonly CardNumberRegistry _numbers;
 
     public TaskItemRepository(IMongoDatabase mongoDatabase)
     {
         _collection = mongoDatabase.GetCollection<TaskItem>(nameof(RequiredCollections.Tasks));
+        _numbers = new CardNumberRegistry(mongoDatabase);
     }
 
     public async Task<IReadOnlyList<TaskItem>> GetAllTaskItemsByGuildIdAsync(ulong guildId)
     {
         var tasks = await _collection.Find(task => task.GuildId == guildId).ToListAsync() ?? [];
+        await _numbers.AssignAsync(tasks);
 
         return tasks;
     }
@@ -26,38 +29,60 @@ public class TaskItemRepository : ITaskItemRepository
             .Find(task => task.GuildId == guildId && task.BoardId == boardId)
             .ToListAsync() ?? [];
 
+        await _numbers.AssignAsync(tasks);
+
         return tasks;
     }
 
     public async Task<TaskItem?> GetTaskItemByObjectIdOrDefaultAsync(ObjectId objectId)
     {
         var task = await _collection.Find(task => task.Id == objectId).FirstOrDefaultAsync();
+        if (task is not null)
+            await _numbers.AssignAsync([task]);
 
         return task;
     }
 
     public async Task<TaskItem?> GetTaskItemByObjectIdOrDefaultAsync(ObjectId objectId, ulong guildId)
     {
-        return await _collection
+        var task = await _collection
             .Find(task => task.Id == objectId && task.GuildId == guildId)
             .FirstOrDefaultAsync();
+        if (task is not null)
+            await _numbers.AssignAsync([task]);
+        return task;
+    }
+
+    public async Task<TaskItem?> GetByReferenceOrDefaultAsync(string reference, ulong guildId)
+    {
+        if (ObjectId.TryParse(reference, out var objectId))
+            return await GetTaskItemByObjectIdOrDefaultAsync(objectId, guildId);
+        if (!CardReference.TryParse(reference, out var number))
+            return null;
+        var id = await _numbers.FindCardIdAsync(guildId, number);
+        return id.HasValue ? await GetTaskItemByObjectIdOrDefaultAsync(id.Value, guildId) : null;
     }
 
     public async Task<TaskItem?> GetByDiscordMessageIdOrDefaultAsync(ulong guildId, ulong messageId)
     {
-        return await _collection
+        var task = await _collection
             .Find(task => task.GuildId == guildId && task.DiscordMessageId == messageId)
             .FirstOrDefaultAsync();
+        if (task is not null)
+            await _numbers.AssignAsync([task]);
+        return task;
     }
 
     public async Task AddTaskItemAsync(TaskItem task)
     {
+        await PrepareReferenceAsync(task);
         task.CommitChange("card_added", $"{task.Title} was added.");
         await _collection.InsertOneAsync(task);
     }
 
     public async Task<bool> TryAddTaskItemAsync(TaskItem task)
     {
+        await PrepareReferenceAsync(task);
         task.CommitChange("card_added", $"{task.Title} was added.");
         try
         {
@@ -95,6 +120,22 @@ public class TaskItemRepository : ITaskItemRepository
         var result = await _collection.ReplaceOneAsync(filter, task);
 
         return result.ModifiedCount == 1;
+    }
+
+    public async Task BackfillReferencesAsync(CancellationToken cancellationToken)
+    {
+        using var cursor = await _collection.Find(Builders<TaskItem>.Filter.Empty)
+            .SortBy(task => task.CreatedAt).ThenBy(task => task.Id)
+            .ToCursorAsync(cancellationToken);
+        while (await cursor.MoveNextAsync(cancellationToken))
+            await _numbers.AssignAsync(cursor.Current.ToArray(), cancellationToken);
+    }
+
+    private async Task PrepareReferenceAsync(TaskItem task)
+    {
+        if (task.Id == ObjectId.Empty)
+            task.Id = ObjectId.GenerateNewId();
+        await _numbers.AssignAsync([task]);
     }
 
     public async Task RemoveTaskItemAsync(TaskItem task)

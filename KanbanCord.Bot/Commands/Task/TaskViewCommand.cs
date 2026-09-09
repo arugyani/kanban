@@ -44,13 +44,12 @@ partial class TaskCommandGroup
         var people = assigneeIds.Count == 0
             ? assigneeGroup?.Name ?? "Nobody yet"
             : string.Join(", ", assigneeIds.Select(id => $"<@{id}>"));
-        var shortId = card.Id.ToString()[^6..].ToUpperInvariant();
 
         var embed = new DiscordEmbedBuilder()
             .WithDefaultColor()
             .WithTitle(card.Title)
             .WithDescription(string.IsNullOrWhiteSpace(card.Description) ? "No notes yet." : card.Description)
-            .AddField("Card", shortId, true)
+            .AddField("Card", card.Key, true)
             .AddField("Column", card.Status.ToFormattedString(), true)
             .AddField("Importance", importance, true)
             .AddField("People on this", people)

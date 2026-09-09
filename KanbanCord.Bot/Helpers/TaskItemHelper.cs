@@ -11,8 +11,6 @@ public static class TaskItemHelper
     {
         List<string> taskStrings = [];
 
-        var id = 1;
-
         foreach (var boardItem in boardItems.Where(x => x.Status == boardStatus))
         {
             if ((assigneeId.HasValue
@@ -21,10 +19,8 @@ public static class TaskItemHelper
             {
                 var user = await client.GetUserAsync(boardItem.AuthorId);
 
-                taskStrings.Add($"{id} - \"{boardItem.Title}\" added by: {user.Username}");
+                taskStrings.Add($"{boardItem.Key} - \"{boardItem.Title}\" added by: {user.Username}");
             }
-
-            id++;
         }
 
         return $"```bash\n{(taskStrings.Any() ? string.Join('\n', taskStrings) : " ")}```";
@@ -37,17 +33,13 @@ public static class TaskItemHelper
     {
         List<DiscordAutoCompleteChoice> taskItems = [];
 
-        var id = 1;
-
         if (boardStatus.HasValue)
         {
             foreach (var task in tasks.Where(x => x.Status == boardStatus))
             {
                 taskItems.Add(new DiscordAutoCompleteChoice(
-                    GetChoiceName(task, boardStatus.Value, id, boardNames),
+                    GetChoiceName(task, boardStatus.Value, boardNames),
                     task.Id.ToString()));
-
-                id++;
             }
         }
         else
@@ -58,13 +50,9 @@ public static class TaskItemHelper
                 foreach (var task in tasks.Where(x => x.Status == newBoardStatus))
                 {
                     taskItems.Add(new DiscordAutoCompleteChoice(
-                        GetChoiceName(task, newBoardStatus, id, boardNames),
+                        GetChoiceName(task, newBoardStatus, boardNames),
                         task.Id.ToString()));
-
-                    id++;
                 }
-
-                id = 1;
             }
         }
 
@@ -74,7 +62,6 @@ public static class TaskItemHelper
     private static string GetChoiceName(
         TaskItem task,
         BoardStatus boardStatus,
-        int id,
         IReadOnlyDictionary<ObjectId, string>? boardNames)
     {
         var boardName = task.BoardId.HasValue
@@ -83,7 +70,7 @@ public static class TaskItemHelper
             ? $"{name} · "
             : string.Empty;
 
-        var choiceName = $"[{boardName}{boardStatus.ToFormattedString()}] {id} - {task.Title}";
+        var choiceName = $"{task.Key} · {task.Title} [{boardName}{boardStatus.ToFormattedString()}]";
 
         return choiceName.Length <= 100 ? choiceName : choiceName[..100];
     }

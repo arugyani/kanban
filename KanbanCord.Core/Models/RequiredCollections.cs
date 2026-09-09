@@ -5,5 +5,7 @@ public enum RequiredCollections
     Tasks,
     Settings,
     Boards,
-    Teams
+    Teams,
+    CardNumbers,
+    CardNumberCounters
 }

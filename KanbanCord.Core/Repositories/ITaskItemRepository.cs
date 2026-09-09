@@ -13,6 +13,8 @@ public interface ITaskItemRepository
 
     Task<TaskItem?> GetTaskItemByObjectIdOrDefaultAsync(ObjectId objectId, ulong guildId);
 
+    Task<TaskItem?> GetByReferenceOrDefaultAsync(string reference, ulong guildId);
+
     Task<TaskItem?> GetByDiscordMessageIdOrDefaultAsync(ulong guildId, ulong messageId);
 
     Task AddTaskItemAsync(TaskItem task);

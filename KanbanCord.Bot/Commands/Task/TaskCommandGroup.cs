@@ -6,7 +6,6 @@ using KanbanCord.Core.Models;
 using KanbanCord.Core.Options;
 using KanbanCord.Core.Repositories;
 using Microsoft.Extensions.Options;
-using MongoDB.Bson;
 
 namespace KanbanCord.Bot.Commands.Task;
 
@@ -64,9 +63,7 @@ partial class TaskCommandGroup
         string taskId,
         bool requireEdit = true)
     {
-        var task = ObjectId.TryParse(taskId, out var objectId)
-            ? await _taskItemRepository.GetTaskItemByObjectIdOrDefaultAsync(objectId, context.Guild!.Id)
-            : null;
+        var task = await _taskItemRepository.GetByReferenceOrDefaultAsync(taskId, context.Guild!.Id);
         if (task?.BoardId is null)
             return null;
 

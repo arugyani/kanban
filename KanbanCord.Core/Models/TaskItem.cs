@@ -7,6 +7,12 @@ public class TaskItem
 {
     public ObjectId Id { get; set; } = new();
 
+    [BsonIgnore]
+    public long CardNumber { get; set; }
+
+    [BsonIgnore]
+    public string Key => CardNumber > 0 ? CardReference.Format(CardNumber) : Id.ToString();
+
     public required ulong GuildId { get; set; }
 
     // Null on documents created before multiple-board support. Those tasks are

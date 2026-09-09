@@ -45,9 +45,8 @@ public sealed class MyListCommand
             var boardName = card.BoardId.HasValue && boards.TryGetValue(card.BoardId.Value, out var board)
                 ? board.Name
                 : "Board";
-            var shortId = card.Id.ToString()[^6..].ToUpperInvariant();
             var when = card.DueAt.HasValue ? $" · <t:{new DateTimeOffset(card.DueAt.Value).ToUnixTimeSeconds()}:d>" : string.Empty;
-            return $"**{boardName} · {card.Status.ToFormattedString()}** — {card.Title} (`{shortId}`){when}";
+            return $"**{boardName} · {card.Status.ToFormattedString()}** — {card.Title} (`{card.Key}`){when}";
         });
         var description = cards.Count == 0
             ? "Nothing is on your list right now."

@@ -39,6 +39,23 @@ shared recap.
 Group membership, roles, themes, boards, and the five visible columns remain in
 the website's organizer screens.
 
+## Card IDs
+
+Cards use `BOO-001`, `BOO-002`, and so on, shared across all boards in one Discord
+server. IDs stay the same after edits, moves, renames, and restarts; deleted
+numbers are never reused. After `BOO-999`, the sequence continues at `BOO-1000`.
+Use these IDs in Discord card commands or the website search.
+
+MongoDB reserves numbers atomically. Interrupted creations or competing retries
+may leave gaps, but cannot issue the same number to different cards. The
+`CardNumbers` registry and `CardNumberCounters` collections must be included in
+database backups and must not be cleared when deleting cards.
+
+Startup assigns references to existing cards (including archived cards), oldest
+first. References live separately from card documents so an older bot release
+can still read and update cards. Existing internal IDs, API links, and Discord
+buttons remain valid. No website configuration change is needed.
+
 ## Configuration
 
 ASP.NET Core maps double underscores in environment variable names to nested

@@ -787,7 +787,7 @@ public sealed class BoardApiService
         return new
         {
             id = task.Id.ToString(),
-            key = CardKey(board, task),
+            key = task.Key,
             boardId = board.Id.ToString(),
             columnId = ColumnId(board.Id, task.Status),
             title = task.Title,
@@ -1186,15 +1186,6 @@ public sealed class BoardApiService
         BoardStatus.Completed => $"{boardId}:done",
         _ => $"{boardId}:archived",
     };
-
-    private static string CardKey(Board board, TaskItem task)
-    {
-        var prefix = new string(board.Name.Where(char.IsLetterOrDigit).Take(5).ToArray()).ToUpperInvariant();
-        if (prefix.Length == 0)
-            prefix = "CARD";
-        var id = task.Id.ToString().ToUpperInvariant();
-        return $"{prefix}-{id[^6..]}";
-    }
 
     private static string Slug(string value)
     {
