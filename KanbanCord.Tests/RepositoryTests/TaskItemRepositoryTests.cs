@@ -48,6 +48,52 @@ namespace KanbanCord.Tests.RepositoryTests
         }
 
         [Fact]
+        public async Task TryRemoveTaskItemAsync_RequiresMatchingVersionAndGuild()
+        {
+            var task = new TaskItem { GuildId = 123, Title = "Delete me", Description = "", AuthorId = 456 };
+            await _repository.AddTaskItemAsync(task);
+            Assert.False(await _repository.TryRemoveTaskItemAsync(task, task.Version + 1));
+            task.GuildId = 999;
+            Assert.False(await _repository.TryRemoveTaskItemAsync(task, task.Version));
+            task.GuildId = 123;
+            Assert.NotNull(await _repository.GetTaskItemByObjectIdOrDefaultAsync(task.Id));
+            Assert.True(await _repository.TryRemoveTaskItemAsync(task, task.Version));
+            Assert.Null(await _repository.GetTaskItemByObjectIdOrDefaultAsync(task.Id));
+            Assert.False(await _repository.TryRemoveTaskItemAsync(task, task.Version));
+        }
+
+        [Fact]
+        public async Task TryRemoveTaskItemAsync_AcceptsLegacyMissingVersion()
+        {
+            var task = new TaskItem { GuildId = 123, Title = "Legacy card", Description = "", AuthorId = 456 };
+            await _repository.AddTaskItemAsync(task);
+            await _database.GetCollection<TaskItem>(nameof(RequiredCollections.Tasks)).UpdateOneAsync(
+                item => item.Id == task.Id, Builders<TaskItem>.Update.Unset(item => item.Version));
+            Assert.True(await _repository.TryRemoveTaskItemAsync(task, 0));
+        }
+
+        [Fact]
+        public async Task BoardTransfer_PreservesIdentityAndRejectsStaleWrites()
+        {
+            var sourceBoardId = ObjectId.GenerateNewId();
+            var destinationBoardId = ObjectId.GenerateNewId();
+            var task = new TaskItem { GuildId = 123, Title = "Move me", Description = "Keep these notes", AuthorId = 456, BoardId = sourceBoardId, Tags = ["web"] };
+            await _repository.AddTaskItemAsync(task);
+            var originalId = task.Id;
+            var version = task.Version;
+            task.BoardId = destinationBoardId;
+            Assert.False(await _repository.TryUpdateTaskItemAsync(task, version + 1));
+            var unchanged = await _repository.GetTaskItemByObjectIdOrDefaultAsync(originalId);
+            Assert.Equal(sourceBoardId, unchanged!.BoardId);
+            Assert.True(await _repository.TryUpdateTaskItemAsync(task, version));
+            var moved = await _repository.GetTaskItemByObjectIdOrDefaultAsync(originalId);
+            Assert.Equal(destinationBoardId, moved!.BoardId);
+            Assert.Equal("Keep these notes", moved.Description);
+            Assert.Equal(["web"], moved.Tags);
+            Assert.Equal(version + 1, moved.Version);
+        }
+
+        [Fact]
         public async Task GetAllTaskItemsByGuildIdAsync_ShouldReturnTaskItems()
         {
             // Arrange

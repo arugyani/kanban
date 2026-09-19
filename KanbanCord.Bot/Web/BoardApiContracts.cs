@@ -13,7 +13,8 @@ public sealed record MoveCardRequest(
     string ColumnId,
     long ExpectedVersion,
     string? TargetCardId = null,
-    string? Edge = null);
+    string? Edge = null,
+    string? BoardId = null);
 
 public sealed record AddCommentRequest(string Body);
 

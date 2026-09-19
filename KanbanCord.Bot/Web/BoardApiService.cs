@@ -133,6 +133,20 @@ public sealed class BoardApiService
         return MapCard(task, board, teams.ToDictionary(team => team.Id), await BuildBoardGroupsAsync(identity.Guild.Id));
     }
 
+    public async Task DeleteCardAsync(HttpRequest httpRequest, string id, long expectedVersion)
+    {
+        var identity = await ResolveIdentityAsync(httpRequest);
+        var task = await GetTaskAsync(id, identity.Guild.Id);
+        var board = await GetTaskBoardAsync(task, identity.Guild.Id);
+        await EnsureCanEditAsync(identity, board);
+        if (!identity.IsAdministrator && !identity.Member.Permissions.HasPermission(DiscordPermission.ManageMessages))
+            throw new BoardApiException(403, "forbidden", "You need Discord Manage Messages permission to delete cards.");
+        if (expectedVersion < 0)
+            throw InvalidInput("Choose a valid card version.");
+        if (!await _taskRepository.TryRemoveTaskItemAsync(task, expectedVersion))
+            throw VersionConflict();
+    }
+
     public async Task<object> UpdateCardAsync(HttpRequest httpRequest, string id, JsonElement request)
     {
         var identity = await ResolveIdentityAsync(httpRequest);
@@ -200,17 +214,32 @@ public sealed class BoardApiService
         var task = await GetTaskAsync(id, identity.Guild.Id);
         var board = await GetTaskBoardAsync(task, identity.Guild.Id);
         await EnsureCanEditAsync(identity, board);
+        var sourceBoard = board;
+        if (request.BoardId is not null && request.BoardId != board.Id.ToString())
+        {
+            board = await GetBoardAsync(request.BoardId, identity.Guild.Id);
+            await EnsureCanEditAsync(identity, board);
+            var assignedPeople = task.AssigneeIds.ToList();
+            if (task.AssigneeId.HasValue && !assignedPeople.Contains(task.AssigneeId.Value))
+                assignedPeople.Add(task.AssigneeId.Value);
+            await ValidatePeopleAsync(identity, board, assignedPeople);
+            if (task.AssigneeTeamId.HasValue && task.AssigneeTeamId != board.TeamId)
+                throw InvalidInput("Remove the assigned group before moving this card to another group.");
+        }
         var status = ParseColumn(request.ColumnId, board.Id);
         var cards = await _taskRepository.GetAllTaskItemsByBoardIdAsync(identity.Guild.Id, board.Id);
         var target = ResolveMoveTarget(request, task, cards, board, status);
         task.Status = status;
+        task.BoardId = board.Id;
         task.Rank = RankForMove(task, cards, status, target, request.Edge);
         if (task.Status == BoardStatus.Waiting && string.IsNullOrWhiteSpace(task.BlockedReason))
             task.BlockedReason = "Waiting on an update";
         else if (task.Status != BoardStatus.Waiting)
             task.BlockedReason = null;
         var columnName = BoardColumns.For(board).Single(column => column.Status == status).Name;
-        task.RecordChange(identity.UserId, "card_moved", $"{task.Title} moved to {columnName}.");
+        task.RecordChange(identity.UserId, "card_moved", sourceBoard.Id == board.Id
+            ? $"{task.Title} moved to {columnName}."
+            : $"{task.Title} moved from {sourceBoard.Name} to {board.Name} · {columnName}.");
         await SaveWithVersionAsync(task, request.ExpectedVersion);
         var teams = await _teamRepository.GetAllByGuildIdAsync(identity.Guild.Id);
         return MapCard(task, board, teams.ToDictionary(team => team.Id), await BuildBoardGroupsAsync(identity.Guild.Id));

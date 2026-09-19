@@ -27,6 +27,8 @@ public interface ITaskItemRepository
 
     Task RemoveTaskItemAsync(TaskItem task);
 
+    Task<bool> TryRemoveTaskItemAsync(TaskItem task, long expectedVersion);
+
     Task RemoveAllTaskItemsByIdAsync(ulong guildId);
 
     Task RemoveAllTaskItemsByBoardIdAsync(ulong guildId, ObjectId boardId);

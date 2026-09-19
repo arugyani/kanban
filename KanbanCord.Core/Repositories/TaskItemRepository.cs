@@ -143,6 +143,20 @@ public class TaskItemRepository : ITaskItemRepository
         await _collection.DeleteOneAsync(x => x.Id == task.Id);
     }
 
+    public async Task<bool> TryRemoveTaskItemAsync(TaskItem task, long expectedVersion)
+    {
+        var versionFilter = expectedVersion == 0
+            ? Builders<TaskItem>.Filter.Or(
+                Builders<TaskItem>.Filter.Eq(candidate => candidate.Version, 0),
+                Builders<TaskItem>.Filter.Exists(candidate => candidate.Version, false))
+            : Builders<TaskItem>.Filter.Eq(candidate => candidate.Version, expectedVersion);
+        var filter = Builders<TaskItem>.Filter.Eq(candidate => candidate.Id, task.Id)
+                     & Builders<TaskItem>.Filter.Eq(candidate => candidate.GuildId, task.GuildId)
+                     & versionFilter;
+        var result = await _collection.DeleteOneAsync(filter);
+        return result.DeletedCount == 1;
+    }
+
     public async Task RemoveAllTaskItemsByIdAsync(ulong guildId)
     {
         await _collection.DeleteManyAsync(x => x.GuildId == guildId);

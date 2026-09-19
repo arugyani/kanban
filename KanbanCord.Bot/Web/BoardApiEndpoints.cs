@@ -18,6 +18,12 @@ public static class BoardApiEndpoints
         api.MapPatch("/cards/{id}", async (string id, JsonElement request, BoardApiService service, HttpContext context) =>
             Results.Json(new { card = await service.UpdateCardAsync(context.Request, id, request) }));
 
+        api.MapDelete("/cards/{id}", async (string id, long expectedVersion, BoardApiService service, HttpContext context) =>
+        {
+            await service.DeleteCardAsync(context.Request, id, expectedVersion);
+            return Results.NoContent();
+        });
+
         api.MapPost("/cards/{id}/move", async (string id, MoveCardRequest request, BoardApiService service, HttpContext context) =>
             Results.Json(new { card = await service.MoveCardAsync(context.Request, id, request) }));
 
